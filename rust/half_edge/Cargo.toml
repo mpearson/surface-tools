@@ -1,0 +1,15 @@
+[package]
+name = "half_edge"
+version = "0.1.0"
+edition = "2021"
+authors = ["Matthew Pearson"]
+repository = "https://github.com/mpearson/surface-tools"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
