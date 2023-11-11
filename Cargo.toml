@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "rust/half_edge",
+    "rust/test1",
+    "rust/test2",
+]
