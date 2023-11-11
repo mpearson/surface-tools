@@ -24,7 +24,7 @@ fn improve_number(n: &mut i32) {
     *n += 1;
 }
 
-fn test_array_search() {
+pub fn test_search_array() {
     // println!("What is your favorite color?");
     println!("pick a nubmer or something");
     let mut buf = String::new();
@@ -42,8 +42,4 @@ fn test_array_search() {
         Option::None => println!("we aint found shit"),
     }
     // println!("found {b} at index {i}");
-}
-
-fn main() {
-    test_array_search();
 }

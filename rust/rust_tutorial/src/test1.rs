@@ -1,14 +1,13 @@
-use std::io;
-use std::cmp::Ordering;
 use rand::Rng;
+use std::cmp::Ordering;
+use std::io;
 
-fn main() {
+pub fn guess_numbers() {
     // println!("What is your favorite color?");
     println!("Guess a number between 1 and 100:");
 
     // let correct_color = "blue";
     let correct_number: i32 = rand::thread_rng().gen_range(1..=100);
-
 
     let mut guess: String = String::new();
     loop {
@@ -16,11 +15,10 @@ fn main() {
         let result = io::stdin().read_line(&mut guess);
         result.expect("wtf man");
         let guess: i32 = match guess.trim().parse() {
-
             Ok(num) => num,
             Err(_) => continue,
         };
-            // .expect("that aint no number hoss");
+        // .expect("that aint no number hoss");
 
         // let mut color: String = String::new();
         // io::stdin().read_line(&mut color);
@@ -37,10 +35,9 @@ fn main() {
             Ordering::Equal => {
                 println!("yay");
                 break;
-            },
+            }
         }
     }
-
 
     // if correct_color.eq(&color) {
     //     println!("You chose....wisely.");
