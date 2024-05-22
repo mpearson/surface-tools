@@ -3,6 +3,10 @@
 version = 3
 
 [[package]]
+name = "bevy_experiment"
+version = "0.1.0"
+
+[[package]]
 name = "bumpalo"
 version = "3.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

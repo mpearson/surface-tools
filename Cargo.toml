@@ -1,3 +1,8 @@
 [workspace]
+resolver = "2"
 
-members = ["rust/half_edge", "rust/rust_tutorial"]
+members = [
+    "rust/half_edge",
+    "rust/rust_tutorial",
+    "rust/bevy_experiment",
+]
