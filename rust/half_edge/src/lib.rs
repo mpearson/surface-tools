@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-extern {
+extern "C" {
     pub fn alert(s: &str);
 }
 
@@ -9,7 +9,6 @@ extern {
 pub fn greet(name: &str) {
     alert(&format!("Heyooooo, {}!", name));
 }
-
 
 // #[derive(Serialize, Deserialize, Debug)]
 // pub struct TestStruct {

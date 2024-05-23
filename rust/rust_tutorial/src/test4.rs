@@ -1,28 +1,18 @@
-
-
-
-
 pub fn enhance_further(s: &mut String) {
     println!("Enhancing further {}", s);
 
     s.push_str("1");
 }
 
-
 pub fn enhance(s: &mut String) {
     println!("Enhancing {}", s);
-
-
 
     s.push_str("!!!");
 
     enhance_further(s);
 }
 
-
-
 pub fn do_stuff() {
-
     let x = 5;
     let y = &x;
 
@@ -34,12 +24,9 @@ pub fn do_stuff() {
 
     enhance(&mut s);
 
-
-
     s += "22222";
 
     println!("substr: {}", substr);
 
     println!("Enhanced string: {}", s);
-
 }
