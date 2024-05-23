@@ -1,4 +1,5 @@
 // use std::env;
+use bevy::prelude::*;
 
 // mod test1;
 // mod test2;
@@ -9,7 +10,13 @@ fn main() {
     println!("wow, such bevy");
     println!("very webGPU");
     println!("much borrow check");
-    println!("wow.");
+    println!("wow");
+
+    App::new().run();
+
+
+
+
     // let args: Vec<String> = env::args().collect();
     // if args.len() < 2 {
     //     println!("No test specified");
