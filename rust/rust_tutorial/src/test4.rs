@@ -8,6 +8,7 @@ pub fn enhance(s: &mut String) {
     println!("Enhancing {}", s);
 
     s.push_str("!!!");
+    *s += "?!";
 
     enhance_further(s);
 }
