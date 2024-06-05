@@ -1,18 +1,27 @@
+use bevy::ecs::schedule::IntoSystemConfigs;
 // use std::env;
-use bevy::prelude::*;
+// use bevy::prelude::*;
+use bevy::prelude::App;
+use bevy::prelude::Startup;
+use bevy::prelude::Update;
 
-// mod test1;
-// mod test2;
-// mod test3;
-// mod test4;
+mod test_component;
+mod test_system;
 
 fn main() {
-    println!("wow, such bevy");
-    println!("very webGPU");
-    println!("much borrow check");
-    println!("wow");
+    // println!("wow, such bevy");
+    // println!("very webGPU");
+    // println!("much borrow check");
+    // println!("wow");
 
-    App::new().run();
+    App::new()
+        .add_systems(Startup, test_system::init_map)
+        // .add_systems(Startup, test_system::print_map_tiles)
+        .add_systems(
+            Update,
+            (test_system::update_tiles, test_system::print_map_tiles).chain(),
+        )
+        .run();
 
     // let args: Vec<String> = env::args().collect();
     // if args.len() < 2 {
