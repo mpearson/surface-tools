@@ -1,11 +1,13 @@
-use bevy::ecs::schedule::IntoSystemConfigs;
+// use bevy::ecs::schedule::IntoSystemConfigs;
 // use std::env;
 // use bevy::prelude::*;
 use bevy::prelude::App;
-use bevy::prelude::Startup;
-use bevy::prelude::Update;
+use bevy::prelude::DefaultPlugins;
+// use bevy::prelude::Startup;
+// use bevy::prelude::Update;
 
 mod test_component;
+mod test_plugin;
 mod test_system;
 
 fn main() {
@@ -14,13 +16,10 @@ fn main() {
     // println!("much borrow check");
     // println!("wow");
 
+    // let systems = (test_system::update_tiles, test_system::print_map_tiles).chain();
+
     App::new()
-        .add_systems(Startup, test_system::init_map)
-        // .add_systems(Startup, test_system::print_map_tiles)
-        .add_systems(
-            Update,
-            (test_system::update_tiles, test_system::print_map_tiles).chain(),
-        )
+        .add_plugins((DefaultPlugins, test_plugin::MyFirstPlugin))
         .run();
 
     // let args: Vec<String> = env::args().collect();
