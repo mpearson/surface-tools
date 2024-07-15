@@ -6,6 +6,7 @@ use bevy::prelude::DefaultPlugins;
 // use bevy::prelude::Startup;
 // use bevy::prelude::Update;
 
+mod basic_scene;
 mod camera;
 mod test_component;
 mod test_plugin;
