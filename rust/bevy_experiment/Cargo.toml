@@ -5,16 +5,20 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[bevy_experiment]
+crate-type = ["cdylib"]
+
 [dependencies]
 # bevy = { version = "0.13.2", features = ["dynamic_linking"] }
 rand = "0.8.5"
+wasm-bindgen = "0.2"
 
 [dependencies.bevy]
-version = "0.13.2"
+version = "0.14.0"
 default-features = false
 features = [
-    "dynamic_linking",
-    "animation",
+    # "dynamic_linking",
+    "bevy_animation",
     "bevy_asset",
     # "bevy_audio",
     # "bevy_gilrs",
@@ -27,15 +31,36 @@ features = [
     "bevy_sprite",
     "bevy_text",
     "bevy_ui",
-    "multi-threaded",
+    # "multi-threaded",
     "png",
     # "hdr",
     # "vorbis",
     "x11",
     "bevy_gizmos",
+    "bevy_state",
+    "bevy_dev_tools",
     # "android_shared_stdcxx",
     "tonemapping_luts",
     "default_font",
     "webgl2",
     "bevy_debug_stepping",
 ]
+# AssetPlugin - with feature bevy_asset
+# ScenePlugin - with feature bevy_scene
+# WinitPlugin - with feature bevy_winit
+# RenderPlugin - with feature bevy_render
+# ImagePlugin - with feature bevy_render
+# PipelinedRenderingPlugin - with feature bevy_render when not targeting wasm32
+# CorePipelinePlugin - with feature bevy_core_pipeline
+# SpritePlugin - with feature bevy_sprite
+# TextPlugin - with feature bevy_text
+# UiPlugin - with feature bevy_ui
+# PbrPlugin - with feature bevy_pbr
+# GltfPlugin - with feature bevy_gltf
+# AudioPlugin - with feature bevy_audio
+# GilrsPlugin - with feature bevy_gilrs
+# AnimationPlugin - with feature bevy_animation
+# GizmoPlugin - with feature bevy_gizmos
+# StatesPlugin - with feature bevy_state
+# DevToolsPlugin - with feature bevy_dev_tools
+# CiTestingPlugin - with feature bevy_ci_testing
