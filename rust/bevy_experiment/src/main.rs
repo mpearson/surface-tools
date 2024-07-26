@@ -8,6 +8,7 @@ use bevy::prelude::DefaultPlugins;
 
 mod basic_scene;
 mod camera;
+mod orbit_camera;
 mod test_component;
 mod test_plugin;
 mod test_system;
