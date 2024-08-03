@@ -69,7 +69,7 @@ impl Default for PanOrbitSettings {
         PanOrbitSettings {
             pan_sensitivity: 0.001,                 // 1000 pixels per world unit
             orbit_sensitivity: 0.1f32.to_radians(), // 0.1 degree per pixel
-            zoom_sensitivity: 0.01,
+            zoom_sensitivity: 0.002,
             pan_key: Some(KeyCode::ControlLeft),
             orbit_key: Some(KeyCode::AltLeft),
             zoom_key: Some(KeyCode::ShiftLeft),
@@ -232,7 +232,7 @@ pub fn pan_orbit_camera(
         // for the first time and need to initialize)
         if any || state.is_added() {
             // YXZ Euler Rotation performs yaw/pitch/roll.
-            transform.rotation = Quat::from_euler(EulerRot::YXZ, state.yaw, state.pitch, 0.0);
+            transform.rotation = Quat::from_euler(EulerRot::YXZ, state.yaw, -state.pitch, 0.0);
             // To position the camera, get the backward direction vector
             // and place the camera at the desired radius from the center.
             transform.translation = state.center + transform.back() * state.radius;
