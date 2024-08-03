@@ -21,8 +21,8 @@ pub fn spawn_stuff(
     // cube
     commands.spawn(PbrBundle {
         mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-        material: materials.add(Color::rgb_u8(124, 144, 255)),
-        transform: Transform::from_xyz(0.0, 0.5, 0.0),
+        material: materials.add(Color::srgb_u8(124, 144, 255)),
+        transform: Transform::from_xyz(0.0, 1.5, 0.0),
         ..default()
     });
     // light
@@ -38,10 +38,17 @@ pub fn spawn_stuff(
     // spawn_camera(commands);
 
     commands.spawn(PanOrbitCameraBundle {
+        camera: Camera3dBundle {
+            camera: Camera {
+                clear_color: ClearColorConfig::Custom(Color::srgb_u8(80, 87, 105)),
+                ..default()
+            },
+            ..default()
+        },
         state: PanOrbitState {
             // center: Vec3::new(1.0, 2.0, 3.0),
             radius: 20.0,
-            pitch: 60.0f32.to_radians(),
+            pitch: 45.0f32.to_radians(),
             yaw: 0.0f32.to_radians(),
             ..default()
         },
