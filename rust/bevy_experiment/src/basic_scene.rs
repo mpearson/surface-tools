@@ -1,9 +1,21 @@
+use std::f32::consts::TAU;
 // use bevy::ecs::schedule::IntoSystemConfigs;
 // use std::env;
 use bevy::prelude::*;
 // use bevy::prelude::Startup;
 // use bevy::prelude::Update;
 use crate::camera::{PanOrbitCameraBundle, PanOrbitState};
+
+#[derive(Component)]
+pub struct CubeRotator {
+    frequency: f32,
+}
+
+impl Default for CubeRotator {
+    fn default() -> Self {
+        Self { frequency: 1.0 }
+    }
+}
 
 /// set up a simple 3D scene
 pub fn spawn_stuff(
@@ -19,12 +31,16 @@ pub fn spawn_stuff(
         ..default()
     });
     // cube
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-        material: materials.add(Color::srgb_u8(124, 144, 255)),
-        transform: Transform::from_xyz(0.0, 1.5, 0.0),
-        ..default()
-    });
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+            material: materials.add(Color::srgb_u8(124, 144, 255)),
+            transform: Transform::from_xyz(0.0, 1.5, 0.0),
+            ..default()
+        },
+        CubeRotator { frequency: 0.5 },
+    ));
+
     // light
     commands.spawn(PointLightBundle {
         point_light: PointLight {
@@ -60,4 +76,12 @@ pub fn spawn_stuff(
     //     transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
     //     ..default()
     // });
+}
+
+pub fn rotate_cube(time: Res<Time>, mut query: Query<(&mut Transform, &CubeRotator)>) {
+    for (mut transform, cube) in &mut query {
+        transform.rotate(Quat::from_rotation_y(
+            time.delta_seconds() * cube.frequency * TAU,
+        ));
+    }
 }

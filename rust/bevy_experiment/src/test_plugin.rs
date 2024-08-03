@@ -23,7 +23,10 @@ impl Plugin for MyFirstPlugin {
         )
         .add_systems(
             Update,
-            pan_orbit_camera.run_if(any_with_component::<PanOrbitState>),
+            (
+                basic_scene::rotate_cube,
+                pan_orbit_camera.run_if(any_with_component::<PanOrbitState>),
+            ),
         );
         // .add_systems(Startup, test_system::print_map_tiles)
         // .add_systems(Update, test_system::print_map_tiles);
