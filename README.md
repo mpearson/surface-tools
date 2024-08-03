@@ -16,3 +16,10 @@ Algorithms and data structures will be implemented in rust and compiled to WASM.
 sudo apt install -y gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64
 rustup target add x86_64-pc-windows-gnu
 ```
+
+# Running in the browser
+```
+# cargo install wasm-server-runner
+
+cargo install wasm-bindgen-cli
+```
