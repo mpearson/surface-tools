@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 # bevy = { version = "0.13.2", features = ["dynamic_linking"] }
 rand = "0.8.5"
 wasm-bindgen = "0.2"
+iyes_perf_ui = "0.3.0"
 
 [dependencies.bevy]
 version = "0.14.0"
