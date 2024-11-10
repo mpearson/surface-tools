@@ -6,7 +6,6 @@ use bevy::prelude::*;
 // use crate::test_component::MapTile;
 // use crate::test_component::PositionGeodetic;
 use crate::basic_scene;
-use crate::camera::{pan_orbit_camera, PanOrbitState};
 
 use crate::test_system;
 
@@ -27,13 +26,7 @@ impl Plugin for MyFirstPlugin {
                     test_system::update_tiles,
                 ),
             )
-            .add_systems(
-                Update,
-                (
-                    basic_scene::rotate_cube,
-                    pan_orbit_camera.run_if(any_with_component::<PanOrbitState>),
-                ),
-            );
+            .add_systems(Update, (basic_scene::rotate_cube,));
         // .add_systems(Startup, test_system::print_map_tiles)
         // .add_systems(Update, test_system::print_map_tiles);
     }

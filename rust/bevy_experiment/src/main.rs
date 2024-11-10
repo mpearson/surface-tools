@@ -1,11 +1,11 @@
 // use bevy::ecs::schedule::IntoSystemConfigs;
 // use std::env;
-// use bevy::prelude::*;
-use bevy::prelude::default;
-use bevy::prelude::App;
-use bevy::prelude::Commands;
-use bevy::prelude::DefaultPlugins;
-use bevy::prelude::Startup;
+use bevy::prelude::*;
+
+// use bevy::prelude::{
+//     any_with_component, default, App, Commands, DefaultPlugins, Plugin, Startup, Update,
+// };
+
 // use bevy::prelude::Update;
 
 mod basic_scene;
@@ -17,9 +17,7 @@ mod test_system;
 
 // mod orbit_camera;
 // use crate::orbit_camera::OrbitCameraPlugin;
-
-// use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
-// use iyes_perf_ui::prelude::*;
+use camera::{pan_orbit_camera, PanOrbitState};
 
 fn main() {
     // println!("wow, such bevy");
@@ -35,10 +33,11 @@ fn main() {
             test_plugin::MyFirstPlugin,
             common::fps_plugin::FpsCounterPlugin,
             // orbit_camera::plugin::OrbitCameraPlugin,
-            // PerfUiPlugin,
-            // FrameTimeDiagnosticsPlugin::default(),
         ))
-        // .add_systems(Startup, setup_fps_counter)
+        .add_systems(
+            Update,
+            pan_orbit_camera.run_if(any_with_component::<PanOrbitState>),
+        )
         .run();
 
     // let args: Vec<String> = env::args().collect();
@@ -57,21 +56,3 @@ fn main() {
     //     _ => println!("No test specified"),
     // }
 }
-
-// fn setup_fps_counter(mut commands: Commands) {
-//     // spawn a camera to be able to see anything
-//     // commands.spawn(Camera2dBundle::default());
-
-//     // create a simple Perf UI with default settings
-//     // and all entries provided by the crate:
-//     // commands.spawn(PerfUiCompleteBundle::default());
-//     commands.spawn((
-//         PerfUiRoot {
-//             display_labels: false,
-//             layout_horizontal: true,
-//             ..default()
-//         },
-//         // PerfUiEntryFPSWorst::default(),
-//         PerfUiEntryFPS::default(),
-//     ));
-// }
