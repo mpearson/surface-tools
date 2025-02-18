@@ -15,9 +15,9 @@ mod test_component;
 mod test_plugin;
 mod test_system;
 
-// mod orbit_camera;
-// use crate::orbit_camera::OrbitCameraPlugin;
-use camera::{pan_orbit_camera, PanOrbitState};
+mod orbit_camera;
+// use crate::orbit_camera; //::OrbitCameraPlugin;
+// use camera::{pan_orbit_camera, PanOrbitState};
 
 fn main() {
     // println!("wow, such bevy");
@@ -32,12 +32,12 @@ fn main() {
             DefaultPlugins,
             test_plugin::MyFirstPlugin,
             common::fps_plugin::FpsCounterPlugin,
-            // orbit_camera::plugin::OrbitCameraPlugin,
+            orbit_camera::plugin::OrbitCameraPlugin,
         ))
-        .add_systems(
-            Update,
-            pan_orbit_camera.run_if(any_with_component::<PanOrbitState>),
-        )
+        // .add_systems(
+        //     Update,
+        //     pan_orbit_camera.run_if(any_with_component::<PanOrbitState>),
+        // )
         .run();
 
     // let args: Vec<String> = env::args().collect();

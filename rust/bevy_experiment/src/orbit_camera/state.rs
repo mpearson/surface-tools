@@ -1,7 +1,7 @@
 // use bevy::math;
 // use std::env;
 // use bevy::prelude::*;
-use bevy::{ecs::prelude::*, math::prelude::*};
+use bevy::{ecs::prelude::*, math::f64::*, math::prelude::*};
 
 // // Bundle to spawn our custom camera easily
 // #[derive(Bundle, Default)]
@@ -14,21 +14,43 @@ use bevy::{ecs::prelude::*, math::prelude::*};
 // The internal state of the pan-orbit controller
 #[derive(Component)]
 pub struct OrbitCameraState {
-    pub center: Vec3,
-    pub radius: f32,
+    pub center: DVec3,
+    pub radius: f64,
     // pub upside_down: bool,
-    pub elevation: f32,
-    pub heading: f32,
+    pub elevation: f64,
+    pub heading: f64,
+
+    pub center_target: DVec3,
+    pub pan_offset_world_space: DVec3,
+    pub pan_offset_target: DVec3,
+    pub drag_start_point: DVec3,
+    pub drag_start_lat_lon: DVec3, // TODO: use lat lon!
+    pub right_click_start: DVec3,
+    //    pub cam:  Camera,
+    pub zoom_level_target: f64,
+    pub current_zoom_level: f64,
+    pub current_euler_angles: DVec3,
+    pub euler_angles_target_delta: DVec3,
 }
 
 impl Default for OrbitCameraState {
     fn default() -> Self {
         Self {
-            center: Vec3::ZERO,
+            center: DVec3::ZERO,
             radius: 1.0,
             // upside_down: false,
             elevation: 0.0,
             heading: 0.0,
+            center_target: DVec3::ZERO,
+            pan_offset_world_space: DVec3::ZERO,
+            pan_offset_target: DVec3::ZERO,
+            drag_start_point: DVec3::ZERO,
+            drag_start_lat_lon: DVec3::ZERO,
+            right_click_start: DVec3::ZERO,
+            zoom_level_target: 0.0,
+            current_zoom_level: 0.0,
+            current_euler_angles: DVec3::ZERO,
+            euler_angles_target_delta: DVec3::ZERO,
         }
     }
 }
