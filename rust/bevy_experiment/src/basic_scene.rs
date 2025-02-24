@@ -4,7 +4,7 @@ use std::f32::consts::TAU;
 use bevy::prelude::*;
 // use bevy::prelude::Startup;
 // use bevy::prelude::Update;
-use crate::camera::{PanOrbitCameraBundle, PanOrbitState};
+// use crate::camera::{PanOrbitCameraBundle, PanOrbitState};
 
 #[derive(Component)]
 pub struct CubeRotator {
@@ -18,7 +18,7 @@ impl Default for CubeRotator {
 }
 
 /// set up a simple 3D scene
-pub fn spawn_stuff(
+pub fn spawn_spinning_cube(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -50,32 +50,6 @@ pub fn spawn_stuff(
         transform: Transform::from_xyz(4.0, 8.0, 4.0),
         ..default()
     });
-    // camera
-    // spawn_camera(commands);
-
-    commands.spawn(PanOrbitCameraBundle {
-        camera: Camera3dBundle {
-            camera: Camera {
-                clear_color: ClearColorConfig::Custom(Color::srgb_u8(80, 87, 105)),
-                ..default()
-            },
-            ..default()
-        },
-        state: PanOrbitState {
-            // center: Vec3::new(1.0, 2.0, 3.0),
-            radius: 20.0,
-            pitch: 45.0f32.to_radians(),
-            yaw: 0.0f32.to_radians(),
-            ..default()
-        },
-        // transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-        // transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
-    // commands.spawn(Camera3dBundle {
-    //     transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-    //     ..default()
-    // });
 }
 
 pub fn rotate_cube(time: Res<Time>, mut query: Query<(&mut Transform, &CubeRotator)>) {

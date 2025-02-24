@@ -12,16 +12,16 @@ use crate::test_system;
 // use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 // use iyes_perf_ui::prelude::*;
 
-pub struct MyFirstPlugin;
+pub struct SpinningCubePlugin;
 
-impl Plugin for MyFirstPlugin {
+impl Plugin for SpinningCubePlugin {
     fn build(&self, app: &mut App) {
         app
             // app.add_plugins(FrameTimeDiagnosticsPlugin::default())
             .add_systems(
                 Startup,
                 (
-                    basic_scene::spawn_stuff,
+                    basic_scene::spawn_spinning_cube,
                     test_system::init_map,
                     test_system::update_tiles,
                 ),

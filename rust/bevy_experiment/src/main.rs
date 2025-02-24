@@ -11,8 +11,8 @@ use bevy::prelude::*;
 mod basic_scene;
 mod camera;
 mod common;
+mod spinning_cube_plugin;
 mod test_component;
-mod test_plugin;
 mod test_system;
 
 mod orbit_camera;
@@ -30,7 +30,7 @@ fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
-            test_plugin::MyFirstPlugin,
+            spinning_cube_plugin::SpinningCubePlugin,
             common::fps_plugin::FpsCounterPlugin,
             orbit_camera::plugin::OrbitCameraPlugin,
         ))
