@@ -3,16 +3,16 @@
 // use bevy::prelude::*;
 use bevy::{
     app::prelude::*,
+    color::Color,
     ecs::{bundle::Bundle, prelude::*},
     input::{
         mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
         prelude::*,
     },
     math::prelude::*,
-    prelude::default,
-    prelude::Camera3dBundle,
-    prelude::ReflectDefault,
+    prelude::{default, Camera3dBundle, ReflectDefault},
     reflect::Reflect,
+    render::camera::{Camera, ClearColorConfig},
     time::Time,
     transform::components::Transform,
 };
@@ -41,7 +41,7 @@ pub struct OrbitCameraPlugin;
 pub struct PanOrbitCameraBundle {
     pub camera: Camera3dBundle,
     pub state: state::OrbitCameraState,
-    pub settings: config::OrbitCameraConfig,
+    pub config: config::OrbitCameraConfig,
 }
 
 /// create the actual camera object
@@ -56,9 +56,9 @@ pub fn spawn_camera(mut commands: Commands) {
         },
         state: state::OrbitCameraState {
             // center: Vec3::new(1.0, 2.0, 3.0),
-            radius: 20.0,
-            pitch: 45.0f32.to_radians(),
-            yaw: 0.0f32.to_radians(),
+            radius: 100.0,
+            elevation: 0.0f64.to_radians(),
+            heading: 0.0f64.to_radians(),
             ..default()
         },
         // transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -76,7 +76,7 @@ impl Plugin for OrbitCameraPlugin {
         let app = app
             // app
             // .add_systems(PreUpdate, on_controller_enabled_changed)
-            .add_systems(Update, controller::control_system)
+            .add_systems(Startup, spawn_camera)
             .add_systems(Update, controller::control_system)
             .add_event::<events::OrbitCameraInput>();
 
