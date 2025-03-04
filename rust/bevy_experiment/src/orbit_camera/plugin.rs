@@ -73,8 +73,8 @@ pub fn spawn_camera(mut commands: Commands) {
 
 impl Plugin for OrbitCameraPlugin {
     fn build(&self, app: &mut App) {
-        let app = app
-            // app
+        // let app = app
+        app
             // .add_systems(PreUpdate, on_controller_enabled_changed)
             .add_systems(Startup, spawn_camera)
             .add_systems(Update, controller::control_system)
