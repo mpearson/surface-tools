@@ -63,14 +63,14 @@ fn update_position(
     // If we get close enough, stop updating.
     let offset_error = state.pan_offset_world_space - state.pan_offset_target;
 
-    if (offset_error.abs().element_sum() < 0.0001) {
+    if offset_error.abs().element_sum() < 0.0001 {
         return false;
     }
 
     // state.pan_offset_world_space = Vector3.Lerp(state.pan_offset_world_space, _panOffsetTarget, pan_smoothing * Mathf.Min(Time.deltaTime, 0.02f));
     state.pan_offset_world_space = state.pan_offset_world_space.lerp(
         state.pan_offset_target,
-        config.pan_smoothing * time.delta_seconds_f64().min(0.02),
+        config.pan_smoothing * time.delta_secs_f64().min(0.02),
     );
     let new_lat_lon = state.drag_start_lat_lon
         + get_lat_lon_offset_from_world_space_offset(&state.pan_offset_world_space);

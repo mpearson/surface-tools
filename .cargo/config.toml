@@ -4,4 +4,5 @@ linker = "clang"
 rustflags = ["-C", "link-arg=-fuse-ld=lld"]
 
 [target.wasm32-unknown-unknown]
-runner = "wasm-server-runner"
+# runner = "wasm-server-runner"
+rustflags = ["--cfg", "getrandom_backend=\"wasm_js\""]
