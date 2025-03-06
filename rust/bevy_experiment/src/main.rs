@@ -17,7 +17,7 @@ mod test_system;
 
 mod orbit_camera;
 // use crate::orbit_camera; //::OrbitCameraPlugin;
-// use camera::{pan_orbit_camera, PanOrbitState};
+use camera::{pan_orbit_camera, PanOrbitState};
 
 fn main() {
     // println!("wow, such bevy");
@@ -34,6 +34,7 @@ fn main() {
             common::fps_plugin::FpsCounterPlugin,
             orbit_camera::plugin::OrbitCameraPlugin,
         ))
+        // Old camera
         // .add_systems(
         //     Update,
         //     pan_orbit_camera.run_if(any_with_component::<PanOrbitState>),
