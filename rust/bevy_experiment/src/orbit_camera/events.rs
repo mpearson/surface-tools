@@ -13,10 +13,10 @@ use bevy::{
 use super::config::OrbitCameraConfig;
 
 #[derive(Event)]
-pub enum OrbitCameraInput {
-    Orbit(Vec2),
-    TranslateTarget(Vec2),
-    Zoom(f32),
+pub struct OrbitCameraInput {
+    pub pan_delta: Vec2,
+    pub orbit_delta: Vec2,
+    pub zoom_delta: f32,
 }
 
 pub fn default_input_map(
@@ -25,12 +25,12 @@ pub fn default_input_map(
     mut mouse_motion_events: EventReader<MouseMotion>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    controllers: Query<&OrbitCameraConfig>,
+    configs: Query<&OrbitCameraConfig>,
 ) {
     // Can only control one camera at a time.
     // let controller = if let Some(controller) = controllers.iter().find(|c| c.enabled) {
-    let controller = if let Some(controller) = controllers.iter().next() {
-        controller
+    let config = if let Some(config) = configs.iter().next() {
+        config
     } else {
         return;
     };
@@ -42,31 +42,39 @@ pub fn default_input_map(
         // orbit_sensitivity_x,
         // orbit_sensitivity_y,
         ..
-    } = *controller;
+    } = *config;
 
     let mut cursor_delta = Vec2::ZERO;
     for event in mouse_motion_events.read() {
         cursor_delta += event.delta;
     }
 
-    if keyboard.pressed(KeyCode::ControlLeft) {
-        events.send(OrbitCameraInput::Orbit(orbit_sensitivity * cursor_delta));
-    }
+    // if keyboard.pressed(KeyCode::ControlLeft) {
+    //     events.send(OrbitCameraInput::Orbit(orbit_sensitivity * cursor_delta));
+    // }
 
-    if mouse_buttons.pressed(MouseButton::Right) {
-        events.send(OrbitCameraInput::TranslateTarget(
-            pan_sensitivity * cursor_delta,
-        ));
-    }
+    // if mouse_buttons.pressed(MouseButton::Right) {
+    //     events.send(OrbitCameraInput::TranslateTarget(
+    //         pan_sensitivity * cursor_delta,
+    //     ));
+    // }
 
-    let mut scalar = 1.0;
+    let pan_delta = Vec2::ZERO;
+    let orbit_delta = Vec2::ZERO;
+
+    let mut zoom_delta = 0.0;
     for event in mouse_wheel_reader.read() {
         let scroll_amount = match event.unit {
             MouseScrollUnit::Line => event.y,
             // scale the event magnitude per pixel or per line
             MouseScrollUnit::Pixel => event.y / scroll_wheel_pixels_per_line,
         };
-        scalar *= 1.0 - scroll_amount * zoom_sensitivity;
+        zoom_delta -= scroll_amount * zoom_sensitivity;
     }
-    events.send(OrbitCameraInput::Zoom(scalar));
+    // events.send(OrbitCameraInput::Zoom(zoom_delta));
+    events.send(OrbitCameraInput {
+        pan_delta,
+        orbit_delta,
+        zoom_delta,
+    });
 }

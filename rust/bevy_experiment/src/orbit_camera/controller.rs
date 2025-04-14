@@ -134,11 +134,39 @@ pub fn update(
     time: Res<Time>,
     mut events: EventReader<OrbitCameraInput>,
     mut cameras: Query<(&OrbitCameraConfig, &mut OrbitCameraState, &mut Transform)>,
+    // mut mouse_inputs: EventReader<OrbitCameraInput>,
     // config: Query<&OrbitCameraConfig>,
     // mut cameras: Query<(&OrbitCameraController, &mut LookTransform, &Transform)>,
 ) {
+    // let mut orbit_delta = Vec2::ZERO;
+    // let mut translate_delta = Vec2::ZERO;
+    // let mut zoom_delta = 0.0;
+
+    let input = if let Some(event) = events.read().next() {
+        event
+    } else {
+        return;
+    };
+    // match event {
+    //     OrbitCameraInput::Orbit(delta) => {
+    //         // look_angles.add_yaw(dt * -delta.x);
+    //         // look_angles.add_pitch(dt * delta.y);
+    //     }
+    //     OrbitCameraInput::TranslateTarget(delta) => {
+    //         // let right_dir = scene_transform.rotation * -Vec3::X;
+    //         // let up_dir = scene_transform.rotation * Vec3::Y;
+    //         // transform.target += dt * delta.x * right_dir + dt * delta.y * up_dir;
+    //     }
+    //     OrbitCameraInput::Zoom(delta) => {
+    //         // radius_scalar *= scalar;
+    //         zoom_delta += delta;
+    //     }
+    // }
+    // }
+
     // Loop over all cameras in the query
     for (config, mut state, mut transform) in &mut cameras {
+        state.radius += input.zoom_delta as f64;
         update_position(config, &mut state, &mut transform, &time);
     }
 
