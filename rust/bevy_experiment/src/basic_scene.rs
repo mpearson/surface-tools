@@ -1,26 +1,19 @@
-use std::f32::consts::TAU;
-// use bevy::ecs::schedule::IntoSystemConfigs;
-// use std::env;
 use bevy::prelude::*;
+use std::f32::consts::TAU;
 
-use crate::camera::{PanOrbitCameraBundle, PanOrbitState};
-// use bevy::prelude::Startup;
-// use bevy::prelude::Update;
-// use crate::camera::{PanOrbitCameraBundle, PanOrbitState};
+// #[derive(Component)]
+// pub struct CubeRotator {
+//     frequency: f32,
+// }
 
-#[derive(Component)]
-pub struct CubeRotator {
-    frequency: f32,
-}
-
-impl Default for CubeRotator {
-    fn default() -> Self {
-        Self { frequency: 1.0 }
-    }
-}
+// impl Default for CubeRotator {
+//     fn default() -> Self {
+//         Self { frequency: 1.0 }
+//     }
+// }
 
 /// set up a simple 3D scene
-pub fn spawn_spinning_cube(
+pub fn spawn_cube(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -45,33 +38,23 @@ pub fn spawn_spinning_cube(
         },
         Transform::from_xyz(4.0, 8.0, 4.0),
     ));
-    // old camera
-    // spawn_camera(commands);
-    // commands.spawn(PanOrbitCameraBundle {
-    //     camera: Camera3dBundle {
-    //         camera: Camera {
-    //             clear_color: ClearColorConfig::Custom(Color::srgb_u8(80, 87, 105)),
-    //             ..default()
-    //         },
-    //         ..default()
-    //     },
-    //     state: PanOrbitState {
-    //         // center: Vec3::new(1.0, 2.0, 3.0),
-    //         radius: 20.0,
-    //         pitch: 90.0f32.to_radians(),
-    //         yaw: 0.0f32.to_radians(),
-    //         ..default()
-    //     },
-    //     // transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-    //     // transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-    //     ..default()
-    // });
 }
 
-pub fn rotate_cube(time: Res<Time>, mut query: Query<(&mut Transform, &CubeRotator)>) {
-    for (mut transform, cube) in &mut query {
-        transform.rotate(Quat::from_rotation_y(
-            time.delta_secs() * cube.frequency * TAU,
-        ));
+// pub fn rotate_cube(time: Res<Time>, mut query: Query<(&mut Transform, &CubeRotator)>) {
+//     for (mut transform, cube) in &mut query {
+//         transform.rotate(Quat::from_rotation_y(
+//             time.delta_secs() * cube.frequency * TAU,
+//         ));
+//     }
+// }
+
+pub struct BasicScenePlugin;
+
+impl Plugin for BasicScenePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, (spawn_cube,));
+        // .add_systems(Update, (basic_scene::rotate_cube,));
+        // .add_systems(Startup, test_system::print_map_tiles)
+        // .add_systems(Update, test_system::print_map_tiles);
     }
 }
