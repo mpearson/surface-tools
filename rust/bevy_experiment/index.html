@@ -3,6 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <title>hello-wasm example</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* why is this necessary? whatever... */
+      }
+      canvas {
+        height: 100vh !important;
+        aspect-ratio: 1.6;
+        width: unset !important;
+      }
+      *:focus-visible {
+        outline: none;
+      }
+    </style>
   </head>
   <body>
     <script type="module">
