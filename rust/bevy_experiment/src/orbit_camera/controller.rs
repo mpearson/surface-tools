@@ -8,7 +8,7 @@ use bevy::{
         mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
         prelude::*,
     },
-    math::{prelude::*, DVec2, DVec3},
+    math::{prelude::*, DQuat, DVec2, DVec3},
     prelude::{Camera3dBundle, ReflectDefault},
     reflect::Reflect,
     render::camera::Camera,
@@ -49,10 +49,10 @@ fn get_lat_lon_offset_from_world_space_offset(pan_offset_world_space: &DVec3) ->
  * Return true if the position changed.
  */
 fn update_position(
-    time: Res<Time>,
-    mut state: OrbitCameraState,
-    mut camera: &Camera,
     config: &OrbitCameraConfig,
+    state: &mut OrbitCameraState,
+    camera_transform: &mut Transform,
+    time: &Res<Time>,
 ) -> bool {
     // TODO: refactor this to use MapAdapter.SetMapCenterGeodetic()
     // if (FocusObject != null && LockPositionToObject) {
@@ -61,19 +61,37 @@ fn update_position(
     //     return positionError;
     // } else if (MapboxMap != null) {
     // If we get close enough, stop updating.
-    let offset_error = state.pan_offset_world_space - state.pan_offset_target;
+    // let offset_error = state.pan_offset_world_space - state.pan_offset_target;
 
-    if offset_error.abs().element_sum() < 0.0001 {
-        return false;
-    }
+    // if offset_error.abs().element_sum() < 0.0001 {
+    //     return false;
+    // }
 
     // state.pan_offset_world_space = Vector3.Lerp(state.pan_offset_world_space, _panOffsetTarget, pan_smoothing * Mathf.Min(Time.deltaTime, 0.02f));
-    state.pan_offset_world_space = state.pan_offset_world_space.lerp(
-        state.pan_offset_target,
-        config.pan_smoothing * time.delta_secs_f64().min(0.02),
-    );
-    let new_lat_lon = state.drag_start_lat_lon
-        + get_lat_lon_offset_from_world_space_offset(&state.pan_offset_world_space);
+    // state.pan_offset_world_space = state.pan_offset_world_space.lerp(
+    //     state.pan_offset_target,
+    //     config.pan_smoothing * time.delta_secs_f64().min(0.02),
+    // );
+    // let new_lat_lon = state.drag_start_lat_lon
+    //     + get_lat_lon_offset_from_world_space_offset(&state.pan_offset_world_space);
+    state.center.lon = (state.center.lon + time.delta_secs_f64() * 1.0) % std::f64::consts::TAU;
+    // state.center.lat = (f64::sin(time.elapsed_secs_f64())) * 15f64.to_radians();
+    state.center.lat = 15f64.to_radians();
+    let lat_lon_rotation =
+        DQuat::from_euler(EulerRot::ZYX, 0.0, state.center.lon, -state.center.lat);
+
+    let surface_vector = DVec3::new(0.0, 0.0, state.radius);
+
+    camera_transform.translation = (lat_lon_rotation * surface_vector).as_vec3();
+    // lat_lon_rotation * surface_vector;
+
+    camera_transform.look_at(Vec3::ZERO, Vec3::Y);
+    // camera_transform.rotation = Quat::from_euler(
+    //     EulerRot::ZYX,
+    //     state.center.lat as f32,
+    //     state.center.lon as f32,
+    //     0.0,
+    // );
 
     // MapboxMap.SetCenterLatitudeLongitude(newLatLon);
     // } else {
@@ -112,22 +130,28 @@ fn update_position(
 //     }
 // }
 
-pub fn control_system(
+pub fn update(
     time: Res<Time>,
     mut events: EventReader<OrbitCameraInput>,
-    mut cameras: Query<(&OrbitCameraState, &Transform)>,
-    config: Query<&OrbitCameraConfig>,
+    mut cameras: Query<(&OrbitCameraConfig, &mut OrbitCameraState, &mut Transform)>,
+    // config: Query<&OrbitCameraConfig>,
     // mut cameras: Query<(&OrbitCameraController, &mut LookTransform, &Transform)>,
 ) {
+    // Loop over all cameras in the query
+    for (config, mut state, mut transform) in &mut cameras {
+        update_position(config, &mut state, &mut transform, &time);
+    }
 
-    // update_position(time, state, camera, &config);
     // Can only control one camera at a time.
+
     // let (mut transform, scene_transform) =
     //     if let Some((_, transform, scene_transform)) = cameras.iter_mut().find(|c| c.0.enabled) {
     //         (transform, scene_transform)
     //     } else {
     //         return;
     //     };
+
+    // update_position(time, state, camera, &config);
 
     // let mut look_angles = LookAngles::from_vector(-transform.look_direction().unwrap());
     // let mut radius_scalar = 1.0;
