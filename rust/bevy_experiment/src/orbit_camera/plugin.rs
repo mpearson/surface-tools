@@ -56,8 +56,8 @@ pub fn spawn_camera(mut commands: Commands) {
         },
         state: state::OrbitCameraState {
             // center: Vec3::new(1.0, 2.0, 3.0),
-            radius: 100.0,
-            elevation: 0.0f64.to_radians(),
+            radius: 20.0,
+            elevation: 90.0f64.to_radians(),
             heading: 0.0f64.to_radians(),
             ..default()
         },
@@ -77,7 +77,7 @@ impl Plugin for OrbitCameraPlugin {
         app
             // .add_systems(PreUpdate, on_controller_enabled_changed)
             .add_systems(Startup, spawn_camera)
-            .add_systems(Update, controller::control_system)
+            .add_systems(Update, controller::update)
             .add_event::<events::OrbitCameraInput>();
 
         // if !self.override_input_system {

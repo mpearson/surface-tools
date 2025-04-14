@@ -3,6 +3,8 @@
 // use bevy::prelude::*;
 use bevy::{ecs::prelude::*, math::f64::*, math::prelude::*};
 
+use crate::common::wgs84_llh::Wgs84Llh;
+
 // // Bundle to spawn our custom camera easily
 // #[derive(Bundle, Default)]
 // pub struct PanOrbitCameraBundle {
@@ -14,7 +16,7 @@ use bevy::{ecs::prelude::*, math::f64::*, math::prelude::*};
 // The internal state of the pan-orbit controller
 #[derive(Component)]
 pub struct OrbitCameraState {
-    pub center: DVec3,
+    pub center: Wgs84Llh,
     pub radius: f64,
     // pub upside_down: bool,
     pub elevation: f64,
@@ -36,7 +38,7 @@ pub struct OrbitCameraState {
 impl Default for OrbitCameraState {
     fn default() -> Self {
         Self {
-            center: DVec3::ZERO,
+            center: Wgs84Llh::default(),
             radius: 1.0,
             // upside_down: false,
             elevation: 0.0,
