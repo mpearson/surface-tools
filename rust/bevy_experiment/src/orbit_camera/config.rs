@@ -41,6 +41,15 @@ pub struct OrbitCameraConfig {
     pub max_zoom: f32,
     pub min_theta: f32,
     pub max_theta: f32,
+    // #############################################################################################
+    // TODO: the minimum pitch angle should depend on the the zoom level. If you're super zoomed out,
+    // you shouldn't be able to put the camera right against the ground, because this means the
+    // terrain in the foreground is very far from the camera's origin, so high-detail tiles will need to
+    // be loaded very far from the origin, and even a small azimuth change will result in translating by
+    // many of these high detail tiles. Meanwhile, if you're zoomed in, there's much less harm in
+    // looking around since the highest detail tile will be directly under the camera.
+    // #############################################################################################
+
     // /// World units per pixel of mouse motion
     // pub pan_sensitivity: f32,
     // /// Radians per pixel of mouse motion
