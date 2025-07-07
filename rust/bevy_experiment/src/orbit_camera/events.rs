@@ -8,12 +8,14 @@ use bevy::{
         prelude::*,
     },
     math::prelude::*,
+    window::{PrimaryWindow, Window},
 };
 
 use super::config::OrbitCameraConfig;
 
 #[derive(Event)]
 pub struct OrbitCameraInput {
+    pub pan_start: Option<Vec2>,
     pub pan_delta: Vec2,
     pub orbit_delta: Vec2,
     pub zoom_delta: f32,
@@ -24,7 +26,8 @@ pub fn default_input_map(
     mut mouse_wheel_reader: EventReader<MouseWheel>,
     mut mouse_motion_events: EventReader<MouseMotion>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
-    keyboard: Res<ButtonInput<KeyCode>>,
+    // keyboard: Res<ButtonInput<KeyCode>>,
+    window: Single<&Window, With<PrimaryWindow>>,
     configs: Query<&OrbitCameraConfig>,
 ) {
     // Can only control one camera at a time.
@@ -39,28 +42,32 @@ pub fn default_input_map(
         zoom_sensitivity,
         orbit_sensitivity,
         scroll_wheel_pixels_per_line,
-        // orbit_sensitivity_x,
-        // orbit_sensitivity_y,
         ..
     } = *config;
 
+    // There may be multiple mouse move events per frame, so we need to accumulate the deltas.
     let mut cursor_delta = Vec2::ZERO;
     for event in mouse_motion_events.read() {
         cursor_delta += event.delta;
     }
 
-    // if keyboard.pressed(KeyCode::ControlLeft) {
-    //     events.send(OrbitCameraInput::Orbit(orbit_sensitivity * cursor_delta));
-    // }
+    // If the left mouse button was pressed during this frame, get the current mouse position
+    // since this will be used to determine the "grab point" on the Earth's surface.
+    let pan_start = if mouse_buttons.just_pressed(MouseButton::Left) {
+        window.cursor_position()
+    } else {
+        None
+    };
 
-    // if mouse_buttons.pressed(MouseButton::Right) {
-    //     events.send(OrbitCameraInput::TranslateTarget(
-    //         pan_sensitivity * cursor_delta,
-    //     ));
-    // }
-
-    let pan_delta = Vec2::ZERO;
-    let orbit_delta = Vec2::ZERO;
+    // Depending on which mouse button is pressed, the mouse delta is applied to pan and/or orbit.
+    let mut pan_delta = Vec2::ZERO;
+    let mut orbit_delta = Vec2::ZERO;
+    if mouse_buttons.pressed(MouseButton::Left) {
+        pan_delta = cursor_delta * pan_sensitivity;
+    }
+    if mouse_buttons.pressed(MouseButton::Right) {
+        orbit_delta = cursor_delta * orbit_sensitivity;
+    }
 
     let mut zoom_delta = 0.0;
     for event in mouse_wheel_reader.read() {
@@ -71,8 +78,8 @@ pub fn default_input_map(
         };
         zoom_delta -= scroll_amount * zoom_sensitivity;
     }
-    // events.send(OrbitCameraInput::Zoom(zoom_delta));
     events.send(OrbitCameraInput {
+        pan_start,
         pan_delta,
         orbit_delta,
         zoom_delta,
