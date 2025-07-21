@@ -79,7 +79,7 @@ impl Plugin for OrbitCameraPlugin {
             .add_systems(Startup, spawn_camera)
             .add_systems(PreUpdate, events::default_input_map)
             .add_systems(Update, controller::update)
-            .add_event::<events::OrbitCameraInput>();
+            .add_event::<events::OrbitCameraInputEvent>();
 
         // if !self.override_input_system {
         //     app.add_systems(Update, default_input_map);

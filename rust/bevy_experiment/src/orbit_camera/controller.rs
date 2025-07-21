@@ -132,7 +132,7 @@ fn update_position(
 
 pub fn update(
     time: Res<Time>,
-    mut events: EventReader<OrbitCameraInput>,
+    mut events: EventReader<OrbitCameraInputEvent>,
     mut cameras: Query<(&OrbitCameraConfig, &mut OrbitCameraState, &mut Transform)>,
     // mut mouse_inputs: EventReader<OrbitCameraInput>,
     // config: Query<&OrbitCameraConfig>,
@@ -142,9 +142,8 @@ pub fn update(
     // let mut translate_delta = Vec2::ZERO;
     // let mut zoom_delta = 0.0;
 
-    let input = if let Some(event) = events.read().next() {
-        event
-    } else {
+    // More idiomatic: Use map_or_else to handle the None case directly
+    let Some(input) = events.read().next() else {
         return;
     };
     // match event {

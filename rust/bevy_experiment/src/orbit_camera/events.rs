@@ -14,7 +14,7 @@ use bevy::{
 use super::config::OrbitCameraConfig;
 
 #[derive(Event)]
-pub struct OrbitCameraInput {
+pub struct OrbitCameraInputEvent {
     pub pan_start: Option<Vec2>,
     pub pan_delta: Vec2,
     pub orbit_delta: Vec2,
@@ -22,7 +22,7 @@ pub struct OrbitCameraInput {
 }
 
 pub fn default_input_map(
-    mut events: EventWriter<OrbitCameraInput>,
+    mut events: EventWriter<OrbitCameraInputEvent>,
     mut mouse_wheel_reader: EventReader<MouseWheel>,
     mut mouse_motion_events: EventReader<MouseMotion>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
@@ -78,7 +78,7 @@ pub fn default_input_map(
         };
         zoom_delta -= scroll_amount * zoom_sensitivity;
     }
-    events.send(OrbitCameraInput {
+    events.send(OrbitCameraInputEvent {
         pan_start,
         pan_delta,
         orbit_delta,
