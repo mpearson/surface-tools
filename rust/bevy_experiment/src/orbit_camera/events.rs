@@ -54,6 +54,15 @@ pub fn default_input_map(
     // If the left mouse button was pressed during this frame, get the current mouse position
     // since this will be used to determine the "grab point" on the Earth's surface.
     let pan_start = if mouse_buttons.just_pressed(MouseButton::Left) {
+        // TODO: figure out which object has been grabbed. Is it the surface of the earth? 2D or
+        // 3D terrain? Or a waypoint or something?
+        // For now, we should assume it's the surface of a smooth spherical earth.
+
+        // Whatever we intersect, we need to get a point in spherical coordinates (lat, lon, alt?)
+        // which becomes a "handle" with which to rotate the ellipsoid. On subsequent frames, we
+        // must then compute the lat/lon deltas needed to move that handle point onto the new screen
+        // ray passing through the mouse position.
+
         window.cursor_position()
     } else {
         None
