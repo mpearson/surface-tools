@@ -10,7 +10,7 @@ use bevy::{
         prelude::*,
     },
     math::prelude::*,
-    prelude::{default, Camera3dBundle, ReflectDefault},
+    prelude::{default, Camera3d, ReflectDefault},
     reflect::Reflect,
     render::camera::{Camera, ClearColorConfig},
     time::Time,
@@ -39,7 +39,8 @@ pub struct OrbitCameraPlugin;
 // Bundle to spawn our custom camera easily
 #[derive(Bundle, Default)]
 pub struct PanOrbitCameraBundle {
-    pub camera: Camera3dBundle,
+    pub camera3d: Camera3d,
+    pub camera: Camera,
     pub state: state::OrbitCameraState,
     pub config: config::OrbitCameraConfig,
 }
@@ -47,11 +48,9 @@ pub struct PanOrbitCameraBundle {
 /// create the actual camera object
 pub fn spawn_camera(mut commands: Commands) {
     commands.spawn(PanOrbitCameraBundle {
-        camera: Camera3dBundle {
-            camera: Camera {
-                clear_color: ClearColorConfig::Custom(Color::srgb_u8(80, 87, 105)),
-                ..default()
-            },
+        camera3d: Camera3d::default(),
+        camera: Camera {
+            clear_color: ClearColorConfig::Custom(Color::srgb_u8(80, 87, 105)),
             ..default()
         },
         state: state::OrbitCameraState {
@@ -77,8 +76,8 @@ impl Plugin for OrbitCameraPlugin {
         app
             // .add_systems(PreUpdate, on_controller_enabled_changed)
             .add_systems(Startup, spawn_camera)
-            .add_systems(PreUpdate, events::default_input_map)
-            .add_systems(Update, controller::update)
+            .add_systems(PreUpdate, events::step)
+            .add_systems(Update, controller::step)
             .add_event::<events::OrbitCameraInputEvent>();
 
         // if !self.override_input_system {
