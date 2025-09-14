@@ -13,6 +13,7 @@ use bevy::{
 
 use super::config::OrbitCameraConfig;
 
+/// Abstracted input event for orbit camera control.
 #[derive(Event)]
 pub struct OrbitCameraInputEvent {
     pub pan_start: Option<Vec2>,
@@ -21,7 +22,11 @@ pub struct OrbitCameraInputEvent {
     pub zoom_delta: f32,
 }
 
-pub fn default_input_map(
+/// Mouse input mapping system.
+/// Maps from raw mouse and keyboard events to orbit camera input events.
+/// This mapping may change over time (e.g. panning may be changed to middle mouse button instead of
+/// left), but [OrbitCameraInputEvent] will remain the same.
+pub fn step(
     mut events: EventWriter<OrbitCameraInputEvent>,
     mut mouse_wheel_reader: EventReader<MouseWheel>,
     mut mouse_motion_events: EventReader<MouseMotion>,

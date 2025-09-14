@@ -130,7 +130,7 @@ fn update_position(
 //     }
 // }
 
-pub fn update(
+pub fn step(
     time: Res<Time>,
     mut events: EventReader<OrbitCameraInputEvent>,
     mut cameras: Query<(&OrbitCameraConfig, &mut OrbitCameraState, &mut Transform)>,
