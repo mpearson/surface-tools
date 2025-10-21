@@ -3,6 +3,7 @@
 // use bevy::prelude::*;
 use bevy::{
     app::prelude::*,
+    camera::{Camera, ClearColorConfig},
     color::Color,
     ecs::{bundle::Bundle, prelude::*},
     input::{
@@ -12,7 +13,6 @@ use bevy::{
     math::prelude::*,
     prelude::{default, Camera3d, ReflectDefault},
     reflect::Reflect,
-    render::camera::{Camera, ClearColorConfig},
     time::Time,
     transform::components::Transform,
 };
@@ -78,7 +78,7 @@ impl Plugin for OrbitCameraPlugin {
             .add_systems(Startup, spawn_camera)
             .add_systems(PreUpdate, events::step)
             .add_systems(Update, controller::step)
-            .add_event::<events::OrbitCameraInputEvent>();
+            .add_message::<events::OrbitCameraInputEvent>();
 
         // if !self.override_input_system {
         //     app.add_systems(Update, default_input_map);

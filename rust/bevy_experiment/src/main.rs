@@ -14,7 +14,7 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             basic_scene::BasicScenePlugin,
-            common::fps_plugin::FpsCounterPlugin,
+            // common::fps_plugin::FpsCounterPlugin,
             orbit_camera::plugin::OrbitCameraPlugin,
         ))
         .run();
