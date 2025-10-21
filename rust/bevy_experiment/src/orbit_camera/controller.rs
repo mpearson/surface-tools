@@ -3,15 +3,15 @@
 // use bevy::prelude::*;
 use bevy::{
     app::prelude::*,
+    camera::Camera,
     ecs::{bundle::Bundle, prelude::*},
     input::{
         mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
         prelude::*,
     },
     math::{prelude::*, DQuat, DVec2, DVec3},
-    prelude::{Camera3dBundle, ReflectDefault},
+    prelude::ReflectDefault,
     reflect::Reflect,
-    render::camera::Camera,
     time::Time,
     transform::components::Transform,
 };
@@ -132,7 +132,7 @@ fn update_position(
 
 pub fn step(
     time: Res<Time>,
-    mut events: EventReader<OrbitCameraInputEvent>,
+    mut input_reader: MessageReader<OrbitCameraInputEvent>,
     mut cameras: Query<(&OrbitCameraConfig, &mut OrbitCameraState, &mut Transform)>,
     // mut mouse_inputs: EventReader<OrbitCameraInput>,
     // config: Query<&OrbitCameraConfig>,
@@ -143,7 +143,7 @@ pub fn step(
     // let mut zoom_delta = 0.0;
 
     // More idiomatic: Use map_or_else to handle the None case directly
-    let Some(input) = events.read().next() else {
+    let Some(input) = input_reader.read().next() else {
         return;
     };
     // match event {
