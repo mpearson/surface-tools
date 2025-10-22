@@ -56,12 +56,12 @@ fn update_zoom(config: &OrbitCameraConfig, state: &mut OrbitCameraState, zoom_de
 fn update_orbit(
     config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
-    orbit_delta: Vec2,
+    orbit_delta: Option<Vec2>,
     dt: f64,
 ) {
-    if orbit_delta != Vec2::ZERO {
-        state.euler_angles_target_delta.x -= orbit_delta.y as f64;
-        state.euler_angles_target_delta.y += orbit_delta.x as f64;
+    if let Some(delta) = orbit_delta {
+        state.euler_angles_target_delta.x -= delta.y as f64;
+        state.euler_angles_target_delta.y += delta.x as f64;
     }
 
     let smoothing = config.orbit_smoothing as f64 * dt;
@@ -125,7 +125,7 @@ fn update_pan_targets(
     camera: &Camera,
     camera_transform: &GlobalTransform,
 ) {
-    if input.pan_active {
+    if let Some(pan_delta) = input.pan_delta {
         if let Some(start) = input.pan_start {
             if let Some(world_point) = cursor_to_world_on_plane(
                 DVec2::new(start.x as f64, start.y as f64),
@@ -142,8 +142,7 @@ fn update_pan_targets(
                 state.is_panning = false;
             }
         } else if state.is_panning {
-            state.pan_cursor_position +=
-                DVec2::new(input.pan_delta.x as f64, input.pan_delta.y as f64);
+            state.pan_cursor_position += DVec2::new(pan_delta.x as f64, pan_delta.y as f64);
         }
 
         if state.is_panning {

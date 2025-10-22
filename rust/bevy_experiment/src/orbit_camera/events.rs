@@ -17,10 +17,9 @@ use super::config::OrbitCameraConfig;
 #[derive(Message)]
 pub struct OrbitCameraInputEvent {
     pub pan_start: Option<Vec2>,
-    pub pan_delta: Vec2,
-    pub orbit_delta: Vec2,
+    pub pan_delta: Option<Vec2>,
+    pub orbit_delta: Option<Vec2>,
     pub zoom_delta: f32,
-    pub pan_active: bool,
 }
 
 /// Mouse input mapping system.
@@ -75,17 +74,12 @@ pub fn step(
     };
 
     // Depending on which mouse button is pressed, the mouse delta is applied to pan and/or orbit.
-    let mut pan_delta = Vec2::ZERO;
-    let mut orbit_delta = Vec2::ZERO;
-    let pan_active = mouse_buttons.pressed(MouseButton::Left);
-    let orbit_active = mouse_buttons.pressed(MouseButton::Right);
-
-    if pan_active {
-        pan_delta = cursor_delta;
-    }
-    if orbit_active {
-        orbit_delta = cursor_delta * orbit_sensitivity;
-    }
+    let pan_delta = mouse_buttons
+        .pressed(MouseButton::Left)
+        .then_some(cursor_delta);
+    let orbit_delta = mouse_buttons
+        .pressed(MouseButton::Right)
+        .then_some(cursor_delta * -orbit_sensitivity);
 
     let mut zoom_delta = 0.0;
     for event in mouse_wheel_reader.read() {
@@ -101,6 +95,5 @@ pub fn step(
         pan_delta,
         orbit_delta,
         zoom_delta,
-        pan_active,
     });
 }
