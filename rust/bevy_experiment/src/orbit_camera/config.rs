@@ -73,8 +73,8 @@ pub struct OrbitCameraConfig {
 impl Default for OrbitCameraConfig {
     fn default() -> Self {
         Self {
-            pan_sensitivity: 8.0,
-            zoom_sensitivity: 0.2,
+            pan_sensitivity: 1.0,
+            zoom_sensitivity: 0.1,
             // orbit_sensitivity_x: 0.4,
             // orbit_sensitivity_y: 0.3,
             orbit_sensitivity: Vec2::new(0.4, 0.3),
@@ -84,10 +84,10 @@ impl Default for OrbitCameraConfig {
             orbit_smoothing: 8.0,
             zoom_smoothing: 5.0,
 
-            max_distance: 10000.0,
-            min_distance: 50.0,
-            min_zoom: 1.0,
-            max_zoom: 20.0,
+            max_distance: 200.0,
+            min_distance: 5.0,
+            min_zoom: 4.0,
+            max_zoom: 22.0,
             min_theta: -80.0,
             max_theta: 80.0,
             // pan_sensitivity: 0.001,                 // 1000 pixels per world unit

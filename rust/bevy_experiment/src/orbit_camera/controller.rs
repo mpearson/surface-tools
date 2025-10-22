@@ -1,13 +1,16 @@
 use bevy::{
     ecs::prelude::*,
-    math::{prelude::*, DVec3},
+    math::{prelude::*, DVec2, DVec3},
+    prelude::Camera,
     time::Time,
-    transform::components::Transform,
+    transform::components::{GlobalTransform, Transform},
 };
 
 use crate::orbit_camera::{events::OrbitCameraInputEvent, state::OrbitCameraState};
 
 use super::config::OrbitCameraConfig;
+
+const POSITION_EPSILON: f32 = 1e-4;
 
 fn distance_to_zoom_level(distance: f64) -> f64 {
     -distance.ln()
@@ -26,16 +29,11 @@ fn initialize_zoom_state(state: &mut OrbitCameraState) {
     }
 }
 
-fn update_zoom(
-    config: &OrbitCameraConfig,
-    state: &mut OrbitCameraState,
-    zoom_delta: f32,
-    dt: f64,
-) {
+fn update_zoom(config: &OrbitCameraConfig, state: &mut OrbitCameraState, zoom_delta: f32, dt: f64) {
     initialize_zoom_state(state);
 
     if zoom_delta != 0.0 {
-        state.zoom_level_target += zoom_delta as f64;
+        state.zoom_level_target -= zoom_delta as f64;
     }
 
     let min_zoom_level = distance_to_zoom_level(config.max_distance as f64);
@@ -89,14 +87,99 @@ fn update_orbit(
 
     let min_theta = config.min_theta as f64;
     let max_theta = config.max_theta as f64;
-    state.current_euler_angles.x =
-        state.current_euler_angles.x.clamp(min_theta, max_theta);
+    state.current_euler_angles.x = state.current_euler_angles.x.clamp(min_theta, max_theta);
 
     state.current_euler_angles.y = state.current_euler_angles.y.rem_euclid(360.0);
     state.current_euler_angles.z = 0.0;
 }
 
-fn update_position(state: &OrbitCameraState, camera_transform: &mut Transform) -> bool {
+fn cursor_to_world_on_plane(
+    cursor: DVec2,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+    plane_height: f64,
+) -> Option<DVec3> {
+    let viewport_pos = Vec2::new(cursor.x as f32, cursor.y as f32);
+    let ray = camera
+        .viewport_to_world(camera_transform, viewport_pos)
+        .ok()?;
+    let plane_origin = Vec3::new(0.0, plane_height as f32, 0.0);
+    let plane = InfinitePlane3d::new(Vec3::Y);
+
+    let Some(distance) = ray.intersect_plane(plane_origin, plane) else {
+        return None;
+    };
+
+    let intersection = ray.get_point(distance);
+    Some(DVec3::new(
+        intersection.x as f64,
+        plane_height,
+        intersection.z as f64,
+    ))
+}
+
+fn update_pan_targets(
+    config: &OrbitCameraConfig,
+    state: &mut OrbitCameraState,
+    input: &OrbitCameraInputEvent,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+) {
+    if input.pan_active {
+        if let Some(start) = input.pan_start {
+            if let Some(world_point) = cursor_to_world_on_plane(
+                DVec2::new(start.x as f64, start.y as f64),
+                camera,
+                camera_transform,
+                0.0,
+            ) {
+                state.is_panning = true;
+                state.pan_cursor_position = DVec2::new(start.x as f64, start.y as f64);
+                state.drag_start_point = world_point;
+                state.pan_offset_start = state.pan_offset_world_space;
+                state.pan_offset_target = state.pan_offset_world_space;
+            } else {
+                state.is_panning = false;
+            }
+        } else if state.is_panning {
+            state.pan_cursor_position +=
+                DVec2::new(input.pan_delta.x as f64, input.pan_delta.y as f64);
+        }
+
+        if state.is_panning {
+            if let Some(world_point) =
+                cursor_to_world_on_plane(state.pan_cursor_position, camera, camera_transform, 0.0)
+            {
+                let pan_scale = config.pan_sensitivity as f64;
+                let desired_offset =
+                    state.pan_offset_start + (state.drag_start_point - world_point) * pan_scale;
+                state.pan_offset_target = desired_offset;
+            }
+        }
+    } else {
+        state.is_panning = false;
+        state.pan_offset_start = state.pan_offset_world_space;
+    }
+}
+
+fn smooth_pan(state: &mut OrbitCameraState, config: &OrbitCameraConfig, dt: f64) {
+    let smoothing = (config.pan_smoothing as f64 * dt).min(1.0);
+    if smoothing > 0.0 {
+        state.pan_offset_world_space +=
+            (state.pan_offset_target - state.pan_offset_world_space) * smoothing;
+    } else {
+        state.pan_offset_world_space = state.pan_offset_target;
+    }
+}
+
+fn update_position(
+    config: &OrbitCameraConfig,
+    state: &mut OrbitCameraState,
+    camera_transform: &mut Transform,
+    dt: f64,
+) -> bool {
+    smooth_pan(state, config, dt);
+
     let center = state.center_target + state.pan_offset_world_space;
     let radius = state.radius.max(f64::EPSILON);
 
@@ -115,7 +198,8 @@ fn update_position(state: &OrbitCameraState, camera_transform: &mut Transform) -
     );
 
     let new_translation = (center + offset).as_vec3();
-    let previous_translation = camera_transform.translation;
+    let position_changed =
+        (new_translation - camera_transform.translation).length_squared() > POSITION_EPSILON;
 
     camera_transform.translation = new_translation;
 
@@ -123,14 +207,19 @@ fn update_position(state: &OrbitCameraState, camera_transform: &mut Transform) -
     if (new_translation - look_target).length_squared() > f32::EPSILON {
         camera_transform.look_at(look_target, Vec3::Y);
     }
-
-    (new_translation - previous_translation).length_squared() > f32::EPSILON
+    position_changed
 }
 
 pub fn step(
     time: Res<Time>,
     mut input_reader: MessageReader<OrbitCameraInputEvent>,
-    mut cameras: Query<(&OrbitCameraConfig, &mut OrbitCameraState, &mut Transform)>,
+    mut cameras: Query<(
+        &OrbitCameraConfig,
+        &mut OrbitCameraState,
+        &Camera,
+        &GlobalTransform,
+        &mut Transform,
+    )>,
 ) {
     let Some(input) = input_reader.read().next() else {
         return;
@@ -138,9 +227,10 @@ pub fn step(
 
     let frame_dt = time.delta_secs_f64().min(0.02);
 
-    for (config, mut state, mut transform) in &mut cameras {
+    for (config, mut state, camera, camera_transform, mut transform) in &mut cameras {
+        update_pan_targets(config, &mut state, &input, camera, camera_transform);
         update_zoom(config, &mut state, input.zoom_delta, frame_dt);
         update_orbit(config, &mut state, input.orbit_delta, frame_dt);
-        let _ = update_position(&state, &mut transform);
+        let _ = update_position(config, &mut state, &mut transform, frame_dt);
     }
 }

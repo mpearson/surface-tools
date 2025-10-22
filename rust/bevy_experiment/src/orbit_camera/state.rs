@@ -25,6 +25,7 @@ pub struct OrbitCameraState {
     pub center_target: DVec3,
     pub pan_offset_world_space: DVec3,
     pub pan_offset_target: DVec3,
+    pub pan_offset_start: DVec3,
     pub drag_start_point: DVec3,
     pub drag_start_lat_lon: DVec3, // TODO: use lat lon!
     pub right_click_start: DVec3,
@@ -33,6 +34,8 @@ pub struct OrbitCameraState {
     pub current_zoom_level: f64,
     pub current_euler_angles: DVec3,
     pub euler_angles_target_delta: DVec3,
+    pub pan_cursor_position: DVec2,
+    pub is_panning: bool,
 }
 
 impl Default for OrbitCameraState {
@@ -46,6 +49,7 @@ impl Default for OrbitCameraState {
             center_target: DVec3::ZERO,
             pan_offset_world_space: DVec3::ZERO,
             pan_offset_target: DVec3::ZERO,
+            pan_offset_start: DVec3::ZERO,
             drag_start_point: DVec3::ZERO,
             drag_start_lat_lon: DVec3::ZERO,
             right_click_start: DVec3::ZERO,
@@ -53,6 +57,8 @@ impl Default for OrbitCameraState {
             current_zoom_level: 0.0,
             current_euler_angles: DVec3::ZERO,
             euler_angles_target_delta: DVec3::ZERO,
+            pan_cursor_position: DVec2::ZERO,
+            is_panning: false,
         }
     }
 }
