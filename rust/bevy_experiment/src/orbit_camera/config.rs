@@ -74,7 +74,7 @@ impl Default for OrbitCameraConfig {
     fn default() -> Self {
         Self {
             pan_sensitivity: 1.0,
-            zoom_sensitivity: 0.1,
+            zoom_sensitivity: 0.05,
             // orbit_sensitivity_x: 0.4,
             // orbit_sensitivity_y: 0.3,
             orbit_sensitivity: Vec2::new(0.4, 0.3),
