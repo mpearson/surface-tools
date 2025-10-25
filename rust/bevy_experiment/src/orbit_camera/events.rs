@@ -7,6 +7,7 @@ use bevy::{
         mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
         prelude::*,
     },
+    // math::f64::*,
     math::prelude::*,
     window::{PrimaryWindow, Window},
 };
@@ -67,7 +68,6 @@ pub fn step(
         // which becomes a "handle" with which to rotate the ellipsoid. On subsequent frames, we
         // must then compute the lat/lon deltas needed to move that handle point onto the new screen
         // ray passing through the mouse position.
-
         window.cursor_position()
     } else {
         None

@@ -29,9 +29,9 @@ pub struct OrbitCameraConfig {
     pub orbit_sensitivity: Vec2,
     pub scroll_wheel_pixels_per_line: f32,
 
-    pub pan_smoothing: f64,
-    pub orbit_smoothing: f64,
-    pub zoom_smoothing: f64,
+    pub pan_smoothing: f32,
+    pub orbit_smoothing: f32,
+    pub zoom_smoothing: f32,
 
     // pub orbit_sensitivity_x: f32,
     // pub orbit_sensitivity_y: f32,
@@ -73,15 +73,15 @@ pub struct OrbitCameraConfig {
 impl Default for OrbitCameraConfig {
     fn default() -> Self {
         Self {
-            pan_sensitivity: 1.0,
+            pan_sensitivity: 2.0,
             zoom_sensitivity: 0.05,
             // orbit_sensitivity_x: 0.4,
             // orbit_sensitivity_y: 0.3,
             orbit_sensitivity: Vec2::new(0.4, 0.3),
             scroll_wheel_pixels_per_line: 16.0,
 
-            pan_smoothing: 8.0,
-            orbit_smoothing: 8.0,
+            pan_smoothing: 4.0,
+            orbit_smoothing: 20.0,
             zoom_smoothing: 5.0,
 
             max_distance: 200.0,
