@@ -42,10 +42,10 @@ impl Default for OrbitCameraState {
     fn default() -> Self {
         Self {
             center: Wgs84Llh::default(),
-            radius: 1.0,
+            radius: 20.0,
             // upside_down: false,
-            elevation: 0.0,
-            heading: 0.0,
+            elevation: 45.0f64.to_radians(),
+            heading: 0.0f64.to_radians(),
             center_target: Vec3::ZERO,
             pan_offset_world_space: Vec3::ZERO,
             pan_offset_target: Vec3::ZERO,
