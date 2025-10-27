@@ -53,13 +53,7 @@ pub fn spawn_camera(mut commands: Commands) {
             clear_color: ClearColorConfig::Custom(Color::srgb_u8(80, 87, 105)),
             ..default()
         },
-        state: state::OrbitCameraState {
-            // center: Vec3::new(1.0, 2.0, 3.0),
-            radius: 20.0,
-            elevation: 90.0f64.to_radians(),
-            heading: 0.0f64.to_radians(),
-            ..default()
-        },
+        // state: state::OrbitCameraState::default(),
         // transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
         // transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
