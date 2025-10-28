@@ -129,14 +129,17 @@ fn update_pan_targets(
             {
                 state.is_panning = true;
                 state.pan_cursor_position = Vec2::new(start.x, start.y);
-                state.drag_start_point = world_point;
-                state.pan_offset_start = state.pan_offset_world_space;
-                state.pan_offset_target = state.pan_offset_world_space;
+                state.pan_start_world_space.x = world_point.x as f64;
+                state.pan_start_world_space.y = world_point.y as f64;
+                state.pan_offset_screen_space = Vec2::ZERO;
+                // state.pan_offset_start = state.pan_offset_world_space;
+                // state.pan_offset_target = state.pan_offset_world_space;
             } else {
                 state.is_panning = false;
             }
         } else if state.is_panning {
-            state.pan_cursor_position += Vec2::new(pan_delta.x, pan_delta.y);
+            // state.pan_cursor_position += Vec2::new(pan_delta.x, pan_delta.y);
+            state.pan_offset_screen_space += Vec2::new(pan_delta.x, pan_delta.y);
         }
 
         if state.is_panning {
@@ -173,7 +176,7 @@ fn update_position(
 ) -> bool {
     smooth_pan(state, config, dt);
 
-    let center = state.center_target + state.pan_offset_world_space;
+    let center = state.position_target + state.pan_offset_world_space;
     let radius = state.radius.max(f32::EPSILON);
 
     let yaw_rad = state.current_euler_angles.y.to_radians();
