@@ -17,7 +17,7 @@ use super::config::OrbitCameraConfig;
 /// Abstracted input event for orbit camera control.
 #[derive(Message)]
 pub struct OrbitCameraInputEvent {
-    pub pan_start: Option<Vec2>,
+    pub pan_start_screen_space: Option<Vec2>,
     pub pan_delta: Option<Vec2>,
     pub orbit_delta: Option<Vec2>,
     pub zoom_delta: f32,
@@ -59,7 +59,7 @@ pub fn step(
 
     // If the left mouse button was pressed during this frame, get the current mouse position
     // since this will be used to determine the "grab point" on the Earth's surface.
-    let pan_start = if mouse_buttons.just_pressed(MouseButton::Left) {
+    let pan_start_screen_space = if mouse_buttons.just_pressed(MouseButton::Left) {
         // TODO: figure out which object has been grabbed. Is it the surface of the earth? 2D or
         // 3D terrain? Or a waypoint or something?
         // For now, we should assume it's the surface of a smooth spherical earth.
@@ -91,7 +91,7 @@ pub fn step(
         zoom_delta -= scroll_amount * zoom_sensitivity;
     }
     events.write(OrbitCameraInputEvent {
-        pan_start,
+        pan_start_screen_space,
         pan_delta,
         orbit_delta,
         zoom_delta,
