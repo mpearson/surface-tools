@@ -22,8 +22,9 @@ pub struct OrbitCameraState {
     // pub elevation: f64,
     // pub heading: f64,
     pub position_target: DVec2,
-    pub pan_start_world_space: DVec2,
+    pub pan_start_screen_space: Vec2,
     pub pan_offset_screen_space: Vec2,
+    pub pan_start_world_space: DVec2,
 
     // pub pan_offset_world_space: DVec2,
     // pub pan_offset_target: Vec3,
@@ -49,6 +50,8 @@ impl Default for OrbitCameraState {
             // elevation: 45.0f64.to_radians(),
             // heading: 0.0f64.to_radians(),
             position_target: DVec2::ZERO,
+            pan_start_screen_space: Vec2::ZERO,
+            pan_offset_screen_space: Vec2::ZERO,
             pan_start_world_space: DVec2::ZERO,
             // pan_offset_world_space: DVec2::ZERO,
             // pan_offset_target: Vec3::ZERO,
@@ -60,7 +63,7 @@ impl Default for OrbitCameraState {
             current_zoom_level: 0.0,
             current_euler_angles: Vec3::new(45.0, 0.0, 0.0),
             euler_angles_target_delta: Vec3::ZERO,
-            pan_cursor_position: Vec2::ZERO,
+            // pan_cursor_position: Vec2::ZERO,
             is_panning: false,
         }
     }

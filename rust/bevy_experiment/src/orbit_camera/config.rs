@@ -24,12 +24,12 @@ use bevy::{ecs::prelude::*, math::prelude::*};
 /// The configuration of the pan-orbit controller
 #[derive(Component)]
 pub struct OrbitCameraConfig {
-    pub pan_sensitivity: f32,
+    pub pan_sensitivity: f64,
     pub zoom_sensitivity: f32,
     pub orbit_sensitivity: Vec2,
     pub scroll_wheel_pixels_per_line: f32,
 
-    pub pan_smoothing: f32,
+    pub pan_smoothing: f64,
     pub orbit_smoothing: f32,
     pub zoom_smoothing: f32,
 

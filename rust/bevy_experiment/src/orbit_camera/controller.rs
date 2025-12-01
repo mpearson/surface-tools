@@ -99,7 +99,7 @@ fn cursor_to_world_on_plane(
     camera: &Camera,
     camera_transform: &GlobalTransform,
     plane_height: f32,
-) -> Option<Vec3> {
+) -> Option<DVec3> {
     let viewport_pos = Vec2::new(cursor.x, cursor.y);
     let ray = camera
         .viewport_to_world(camera_transform, viewport_pos)
@@ -112,7 +112,11 @@ fn cursor_to_world_on_plane(
     };
 
     let intersection = ray.get_point(distance);
-    Some(Vec3::new(intersection.x, plane_height, intersection.z))
+    Some(DVec3::new(
+        intersection.x as f64,
+        plane_height as f64,
+        intersection.z as f64,
+    ))
 }
 
 fn update_pan_targets(
@@ -123,14 +127,15 @@ fn update_pan_targets(
     camera_transform: &GlobalTransform,
 ) {
     if let Some(pan_delta) = input.pan_delta {
-        if let Some(start) = input.pan_start {
-            if let Some(world_point) =
-                cursor_to_world_on_plane(Vec2::new(start.x, start.y), camera, camera_transform, 0.0)
+        if let Some(pan_start_screen_space) = input.pan_start_screen_space {
+            if let Some(pan_start_world_space) =
+                cursor_to_world_on_plane(pan_start_screen_space, camera, camera_transform, 0.0)
             {
                 state.is_panning = true;
-                state.pan_cursor_position = Vec2::new(start.x, start.y);
-                state.pan_start_world_space.x = world_point.x as f64;
-                state.pan_start_world_space.y = world_point.y as f64;
+                // state.pan_cursor_position = Vec2::new(start.x, start.y);
+                state.pan_start_screen_space = pan_start_screen_space;
+                state.pan_start_world_space.x = pan_start_world_space.x as f64;
+                state.pan_start_world_space.y = pan_start_world_space.y as f64;
                 state.pan_offset_screen_space = Vec2::ZERO;
                 // state.pan_offset_start = state.pan_offset_world_space;
                 // state.pan_offset_target = state.pan_offset_world_space;
@@ -143,13 +148,17 @@ fn update_pan_targets(
         }
 
         if state.is_panning {
-            if let Some(world_point) =
-                cursor_to_world_on_plane(state.pan_cursor_position, camera, camera_transform, 0.0)
-            {
+            if let Some(mouse_pos_world_space) = cursor_to_world_on_plane(
+                state.pan_start_screen_space + state.pan_offset_screen_space,
+                camera,
+                camera_transform,
+                0.0,
+            ) {
                 let pan_scale = config.pan_sensitivity;
-                let desired_offset =
-                    state.pan_offset_start + (state.drag_start_point - world_point) * pan_scale;
-                state.pan_offset_target = desired_offset;
+                let desired_offset = (DVec2::new(mouse_pos_world_space.x, mouse_pos_world_space.y)
+                    - state.pan_start_world_space)
+                    * pan_scale;
+                state.position_target += desired_offset;
             }
         }
     } else {
