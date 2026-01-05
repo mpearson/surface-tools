@@ -13,6 +13,12 @@ use crate::common::wgs84_llh::Wgs84Llh;
 //     pub settings: Config,
 // }
 
+pub struct PanState {
+    pub start_screen_space: Vec2,
+    pub offset_screen_space: Vec2,
+    pub start_world_space: DVec2,
+}
+
 // The internal state of the pan-orbit controller
 #[derive(Component)]
 pub struct OrbitCameraState {
@@ -22,9 +28,10 @@ pub struct OrbitCameraState {
     // pub elevation: f64,
     // pub heading: f64,
     pub position_target: DVec2,
-    pub pan_start_screen_space: Vec2,
-    pub pan_offset_screen_space: Vec2,
-    pub pan_start_world_space: DVec2,
+    pub pan: Option<PanState>,
+    // pub pan_start_screen_space: Vec2,
+    // pub pan_offset_screen_space: Vec2,
+    // pub pan_start_world_space: DVec2,
 
     // pub pan_offset_world_space: DVec2,
     // pub pan_offset_target: Vec3,
@@ -38,7 +45,7 @@ pub struct OrbitCameraState {
     pub current_euler_angles: Vec3,
     pub euler_angles_target_delta: Vec3,
     // pub pan_cursor_position: Vec2,
-    pub is_panning: bool,
+    // pub is_panning: bool,
 }
 
 impl Default for OrbitCameraState {
@@ -50,9 +57,10 @@ impl Default for OrbitCameraState {
             // elevation: 45.0f64.to_radians(),
             // heading: 0.0f64.to_radians(),
             position_target: DVec2::ZERO,
-            pan_start_screen_space: Vec2::ZERO,
-            pan_offset_screen_space: Vec2::ZERO,
-            pan_start_world_space: DVec2::ZERO,
+            pan: None,
+            // pan_start_screen_space: Vec2::ZERO,
+            // pan_offset_screen_space: Vec2::ZERO,
+            // pan_start_world_space: DVec2::ZERO,
             // pan_offset_world_space: DVec2::ZERO,
             // pan_offset_target: Vec3::ZERO,
             // pan_offset_start: Vec3::ZERO,
@@ -64,7 +72,7 @@ impl Default for OrbitCameraState {
             current_euler_angles: Vec3::new(45.0, 0.0, 0.0),
             euler_angles_target_delta: Vec3::ZERO,
             // pan_cursor_position: Vec2::ZERO,
-            is_panning: false,
+            // is_panning: false,
         }
     }
 }
