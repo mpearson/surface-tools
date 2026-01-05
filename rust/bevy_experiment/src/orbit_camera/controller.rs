@@ -6,7 +6,10 @@ use bevy::{
     transform::components::{GlobalTransform, Transform},
 };
 
-use crate::orbit_camera::{events::OrbitCameraInputEvent, state::OrbitCameraState};
+use crate::orbit_camera::{
+    events::OrbitCameraInputEvent,
+    state::{OrbitCameraState, PanState},
+};
 
 use super::config::OrbitCameraConfig;
 
@@ -131,49 +134,61 @@ fn update_pan_targets(
             if let Some(pan_start_world_space) =
                 cursor_to_world_on_plane(pan_start_screen_space, camera, camera_transform, 0.0)
             {
-                state.is_panning = true;
-                // state.pan_cursor_position = Vec2::new(start.x, start.y);
-                state.pan_start_screen_space = pan_start_screen_space;
-                state.pan_start_world_space.x = pan_start_world_space.x as f64;
-                state.pan_start_world_space.y = pan_start_world_space.y as f64;
-                state.pan_offset_screen_space = Vec2::ZERO;
-                // state.pan_offset_start = state.pan_offset_world_space;
-                // state.pan_offset_target = state.pan_offset_world_space;
+                state.pan = Some(PanState {
+                    start_screen_space: pan_start_screen_space,
+                    offset_screen_space: Vec2::ZERO,
+                    start_world_space: DVec2::new(
+                        pan_start_world_space.x as f64,
+                        pan_start_world_space.z as f64,
+                    ),
+                });
+
+                // state.is_panning = true;
+                // // state.pan_cursor_position = Vec2::new(start.x, start.y);
+                // state.pan_start_screen_space = pan_start_screen_space;
+                // state.pan_start_world_space.x = pan_start_world_space.x as f64;
+                // state.pan_start_world_space.y = pan_start_world_space.y as f64;
+                // state.pan_offset_screen_space = Vec2::ZERO;
+                // // state.pan_offset_start = state.pan_offset_world_space;
+                // // state.pan_offset_target = state.pan_offset_world_space;
             } else {
-                state.is_panning = false;
+                state.pan = None;
             }
-        } else if state.is_panning {
+        } else if state.pan.is_some() {
             // state.pan_cursor_position += Vec2::new(pan_delta.x, pan_delta.y);
-            state.pan_offset_screen_space += Vec2::new(pan_delta.x, pan_delta.y);
+            state.pan.as_mut().unwrap().offset_screen_space += Vec2::new(pan_delta.x, pan_delta.y);
         }
 
-        if state.is_panning {
+        if let Some(pan_state) = state.pan.as_mut() {
             if let Some(mouse_pos_world_space) = cursor_to_world_on_plane(
-                state.pan_start_screen_space + state.pan_offset_screen_space,
+                pan_state.start_screen_space + pan_state.offset_screen_space,
                 camera,
                 camera_transform,
                 0.0,
             ) {
                 let pan_scale = config.pan_sensitivity;
                 let desired_offset = (DVec2::new(mouse_pos_world_space.x, mouse_pos_world_space.y)
-                    - state.pan_start_world_space)
+                    - pan_state.start_world_space)
                     * pan_scale;
                 state.position_target += desired_offset;
             }
         }
     } else {
-        state.is_panning = false;
-        state.pan_offset_start = state.pan_offset_world_space;
+        state.pan = None;
+        // state.is_panning = false;
+        // state.pan_offset_start = state.pan_offset_world_space;
     }
 }
 
 fn smooth_pan(state: &mut OrbitCameraState, config: &OrbitCameraConfig, dt: f32) {
-    let smoothing = (config.pan_smoothing * dt).min(1.0);
-    if smoothing > 0.0 {
-        state.pan_offset_world_space +=
-            (state.pan_offset_target - state.pan_offset_world_space) * smoothing;
-    } else {
-        state.pan_offset_world_space = state.pan_offset_target;
+    if let Some(pan_state) = &state.pan {
+        let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
+        if smoothing > 0.0 {
+            pan_state.offset_world_space +=
+                (pan_state.offset_target - pan_state.offset_world_space) * smoothing;
+        } else {
+            pan_state.offset_world_space = pan_state.offset_target;
+        }
     }
 }
 
@@ -182,7 +197,7 @@ fn update_position(
     state: &mut OrbitCameraState,
     camera_transform: &mut Transform,
     dt: f32,
-) -> bool {
+) {
     smooth_pan(state, config, dt);
 
     let center = state.position_target + state.pan_offset_world_space;
@@ -212,7 +227,6 @@ fn update_position(
     if (new_translation - look_target).length_squared() > f32::EPSILON {
         camera_transform.look_at(look_target, Vec3::Y);
     }
-    position_changed
 }
 
 pub fn step(
@@ -236,6 +250,6 @@ pub fn step(
         update_pan_targets(config, &mut state, &input, camera, camera_transform);
         update_zoom(config, &mut state, input.zoom_delta, frame_dt);
         update_orbit(config, &mut state, input.orbit_delta, frame_dt);
-        let _ = update_position(config, &mut state, &mut transform, frame_dt);
+        update_position(config, &mut state, &mut transform, frame_dt);
     }
 }
