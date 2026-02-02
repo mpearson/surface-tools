@@ -1,7 +1,7 @@
 use bevy::{
     color::Color,
     ecs::prelude::*,
-    gizmos::retained::Gizmo,
+    gizmos::prelude::Gizmos,
     math::{
         bounding::{BoundingSphere, RayCast3d},
         prelude::*,
@@ -175,6 +175,7 @@ fn update_pan_targets(
                     offset_screen_space: Vec2::ZERO,
                     start_world_space,
                     start_radius: start_world_space.length(),
+                    current_world_space: start_world_space,
                 });
 
                 // state.is_panning = true;
@@ -207,7 +208,8 @@ fn update_pan_targets(
                 camera_transform,
                 pan_state.start_radius as f32,
             ) {
-                state.pan_rotation_target = DQuat::from_rotation_arc(
+                pan_state.current_world_space = mouse_pos_world_space;
+                state.pan_rotation_target = -DQuat::from_rotation_arc(
                     pan_state.start_world_space.normalize(),
                     mouse_pos_world_space.normalize(),
                 );
@@ -242,27 +244,59 @@ fn update_position(
     config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
     camera_transform: &mut Transform,
+    gizmos: &mut Gizmos,
     dt: f32,
 ) {
+    gizmos.sphere(Vec3::ZERO, config.earth_radius as f32, Color::WHITE);
+    // Debug gizmos for pan positions
+    if let Some(pan_state) = &state.pan {
+        gizmos.sphere(
+            Isometry3d::from_translation(pan_state.start_world_space.as_vec3()),
+            0.1,
+            Color::srgb(1.0, 0.0, 0.0),
+        );
+        gizmos.sphere(
+            Isometry3d::from_translation(pan_state.current_world_space.as_vec3()),
+            0.1,
+            Color::srgb(0.0, 1.0, 0.0),
+        );
+    }
+
     // smooth_pan(state, config, dt);
 
     let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
     let radius = state.radius.max(f64::EPSILON);
 
-    if smoothing > 0.0 {
-        let current_pan_rotation =
-            DQuat::from_rotation_arc(DVec3::X, DVec3::from(camera_transform.translation));
+    // if smoothing > 0.0 {
+    // let current_pan_rotation = DQuat::from_rotation_arc(
+    //     DVec3::X,
+    //     DVec3::from(camera_transform.translation / radius as f32),
+    // );
 
-        let pan_rotation_target = current_pan_rotation * state.pan_rotation_target;
-
-        camera_transform.translation =
-            ((DQuat::slerp(current_pan_rotation, pan_rotation_target, smoothing) * DVec3::Y)
-                * radius)
-                .as_vec3();
-    } else {
-        // camera_transform.translation = camera_transform.translation.normalize() * radius as f32;
-        camera_transform.translation = Vec3::X * -radius as f32;
+    if let Some(pan_state) = &state.pan {
+        camera_transform.translation = (DVec3::from(camera_transform.translation))
+            .rotate_towards(pan_state.current_world_space, -0.01)
+            .as_vec3();
     }
+
+    // state.pan_rotation_target = -DQuat::from_rotation_arc(
+    //     pan_state.start_world_space.normalize(),
+    //     mouse_pos_world_space.normalize(),
+    // );
+
+    // camera_transform.translation =
+    //     ((DQuat::slerp(pan_rotation_target, current_pan_rotation, smoothing) * DVec3::X) * radius)
+    //         .as_vec3();
+
+    // let pan_rotation_target = state.pan_rotation_target * current_pan_rotation;
+
+    // camera_transform.translation =
+    //     ((DQuat::slerp(pan_rotation_target, current_pan_rotation, smoothing) * DVec3::X) * radius)
+    //         .as_vec3();
+    // } else {
+    // camera_transform.translation = camera_transform.translation.normalize() * radius as f32;
+    // camera_transform.translation = Vec3::X * -radius as f32;
+    // }
     camera_transform.look_at(Vec3::ZERO, Vec3::Y);
 
     // DQuat::slerp(self, end, s)
@@ -297,6 +331,7 @@ fn update_position(
 
 pub fn step(
     time: Res<Time>,
+    mut gizmos: Gizmos,
     mut input_reader: MessageReader<OrbitCameraInputEvent>,
     mut cameras: Query<(
         &OrbitCameraConfig,
@@ -316,6 +351,6 @@ pub fn step(
         update_pan_targets(config, &mut state, &input, camera, camera_transform);
         update_zoom(config, &mut state, input.zoom_delta, frame_dt);
         update_orbit(config, &mut state, input.orbit_delta, frame_dt);
-        update_position(config, &mut state, &mut transform, frame_dt);
+        update_position(config, &mut state, &mut transform, &mut gizmos, frame_dt);
     }
 }

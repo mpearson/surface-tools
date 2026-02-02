@@ -18,6 +18,7 @@ pub struct PanState {
     pub offset_screen_space: Vec2,
     pub start_world_space: DVec3,
     pub start_radius: f64,
+    pub current_world_space: DVec3,
 }
 
 // The internal state of the pan-orbit controller

@@ -43,6 +43,7 @@ pub struct PanOrbitCameraBundle {
     pub camera: Camera,
     pub state: state::OrbitCameraState,
     pub config: config::OrbitCameraConfig,
+    pub transform: Transform,
 }
 
 /// create the actual camera object
@@ -54,7 +55,7 @@ pub fn spawn_camera(mut commands: Commands) {
             ..default()
         },
         // state: state::OrbitCameraState::default(),
-        // transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+        transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
         // transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
