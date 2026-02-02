@@ -24,19 +24,19 @@ use bevy::{ecs::prelude::*, math::prelude::*};
 /// The configuration of the pan-orbit controller
 #[derive(Component)]
 pub struct OrbitCameraConfig {
-    pub pan_sensitivity: f64,
-    pub zoom_sensitivity: f32,
+    // pub pan_sensitivity: f64,
+    pub zoom_sensitivity: f64,
     pub orbit_sensitivity: Vec2,
     pub scroll_wheel_pixels_per_line: f32,
 
     pub pan_smoothing: f64,
     pub orbit_smoothing: f32,
-    pub zoom_smoothing: f32,
+    pub zoom_smoothing: f64,
 
     // pub orbit_sensitivity_x: f32,
     // pub orbit_sensitivity_y: f32,
-    pub max_distance: f32,
-    pub min_distance: f32,
+    pub max_distance: f64,
+    pub min_distance: f64,
     pub min_zoom: f32,
     pub max_zoom: f32,
     pub min_theta: f32,
@@ -68,12 +68,13 @@ pub struct OrbitCameraConfig {
     // pub scroll_line_sensitivity: f32,
     // /// For devices with smooth scrolling, like touchpads
     // pub scroll_pixel_sensitivity: f32,
+    pub earth_radius: f32,
 }
 
 impl Default for OrbitCameraConfig {
     fn default() -> Self {
         Self {
-            pan_sensitivity: 2.0,
+            // pan_sensitivity: 2.0,
             zoom_sensitivity: 0.05,
             // orbit_sensitivity_x: 0.4,
             // orbit_sensitivity_y: 0.3,
@@ -99,6 +100,7 @@ impl Default for OrbitCameraConfig {
             // scroll_action: Some(PanOrbitAction::Zoom),
             // scroll_line_sensitivity: 16.0, // 1 "line" == 16 "pixels of motion"
             // scroll_pixel_sensitivity: 1.0,
+            earth_radius: 1.0,
         }
     }
 }

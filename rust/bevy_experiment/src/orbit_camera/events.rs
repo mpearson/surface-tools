@@ -20,7 +20,7 @@ pub struct OrbitCameraInputEvent {
     pub pan_start_screen_space: Option<Vec2>,
     pub pan_delta: Option<Vec2>,
     pub orbit_delta: Option<Vec2>,
-    pub zoom_delta: f32,
+    pub zoom_delta: f64,
 }
 
 /// Mouse input mapping system.
@@ -44,7 +44,7 @@ pub fn step(
         return;
     };
     let OrbitCameraConfig {
-        pan_sensitivity: _,
+        // pan_sensitivity: _,
         zoom_sensitivity,
         orbit_sensitivity,
         scroll_wheel_pixels_per_line,
@@ -88,7 +88,7 @@ pub fn step(
             // scale the event magnitude per pixel or per line
             MouseScrollUnit::Pixel => event.y / scroll_wheel_pixels_per_line,
         };
-        zoom_delta -= scroll_amount * zoom_sensitivity;
+        zoom_delta -= scroll_amount as f64 * zoom_sensitivity;
     }
     events.write(OrbitCameraInputEvent {
         pan_start_screen_space,
