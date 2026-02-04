@@ -1,7 +1,7 @@
 // use bevy::math;
 // use std::env;
 // use bevy::prelude::*;
-use bevy::{ecs::prelude::*, math::f64::*, math::prelude::*};
+use bevy::{ecs::prelude::*, math::f64::*, math::prelude::*, prelude::GlobalTransform};
 
 use crate::common::wgs84_llh::Wgs84Llh;
 
@@ -19,6 +19,7 @@ pub struct PanState {
     pub start_world_space: DVec3,
     pub start_radius: f64,
     pub current_world_space: DVec3,
+    pub start_camera_transform: GlobalTransform,
 }
 
 // The internal state of the pan-orbit controller
