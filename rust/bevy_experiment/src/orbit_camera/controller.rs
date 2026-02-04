@@ -103,30 +103,30 @@ fn update_orbit(
     state.current_euler_angles.z = 0.0;
 }
 
-fn cursor_to_world_on_plane(
-    cursor: Vec2,
-    camera: &Camera,
-    camera_transform: &GlobalTransform,
-    plane_height: f32,
-) -> Option<DVec3> {
-    let viewport_pos = Vec2::new(cursor.x, cursor.y);
-    let ray = camera
-        .viewport_to_world(camera_transform, viewport_pos)
-        .ok()?;
-    let plane_origin = Vec3::new(0.0, plane_height, 0.0);
-    let plane = InfinitePlane3d::new(Vec3::Y);
+// fn cursor_to_world_on_plane(
+//     cursor: Vec2,
+//     camera: &Camera,
+//     camera_transform: &GlobalTransform,
+//     plane_height: f32,
+// ) -> Option<DVec3> {
+//     let viewport_pos = Vec2::new(cursor.x, cursor.y);
+//     let ray = camera
+//         .viewport_to_world(camera_transform, viewport_pos)
+//         .ok()?;
+//     let plane_origin = Vec3::new(0.0, plane_height, 0.0);
+//     let plane = InfinitePlane3d::new(Vec3::Y);
 
-    let Some(distance) = ray.intersect_plane(plane_origin, plane) else {
-        return None;
-    };
+//     let Some(distance) = ray.intersect_plane(plane_origin, plane) else {
+//         return None;
+//     };
 
-    let intersection = ray.get_point(distance);
-    Some(DVec3::new(
-        intersection.x as f64,
-        plane_height as f64,
-        intersection.z as f64,
-    ))
-}
+//     let intersection = ray.get_point(distance);
+//     Some(DVec3::new(
+//         intersection.x as f64,
+//         plane_height as f64,
+//         intersection.z as f64,
+//     ))
+// }
 
 fn cursor_to_world_on_sphere(
     cursor: Vec2,
@@ -176,16 +176,8 @@ fn update_pan_targets(
                     start_world_space,
                     start_radius: start_world_space.length(),
                     current_world_space: start_world_space,
+                    start_camera_transform: camera_transform.clone(),
                 });
-
-                // state.is_panning = true;
-                // // state.pan_cursor_position = Vec2::new(start.x, start.y);
-                // state.pan_start_screen_space = pan_start_screen_space;
-                // state.pan_start_world_space.x = pan_start_world_space.x as f64;
-                // state.pan_start_world_space.y = pan_start_world_space.y as f64;
-                // state.pan_offset_screen_space = Vec2::ZERO;
-                // // state.pan_offset_start = state.pan_offset_world_space;
-                // // state.pan_offset_target = state.pan_offset_world_space;
             } else {
                 state.pan = None;
             }
@@ -205,40 +197,21 @@ fn update_pan_targets(
             if let Some(mouse_pos_world_space) = cursor_to_world_on_sphere(
                 pan_state.start_screen_space + pan_state.offset_screen_space,
                 camera,
-                camera_transform,
+                &pan_state.start_camera_transform,
                 pan_state.start_radius as f32,
             ) {
                 pan_state.current_world_space = mouse_pos_world_space;
-                state.pan_rotation_target = -DQuat::from_rotation_arc(
-                    pan_state.start_world_space.normalize(),
-                    mouse_pos_world_space.normalize(),
-                );
 
-                // let pan_scale = config.pan_sensitivity;
-                // let desired_offset = (DVec2::new(mouse_pos_world_space.x, mouse_pos_world_space.y)
-                //     - pan_state.start_world_space)
-                //     * pan_scale;
-                // state.position_target += desired_offset;
+                state.pan_rotation_target = DQuat::from_rotation_arc(
+                    mouse_pos_world_space.normalize(),
+                    pan_state.start_world_space.normalize(),
+                );
             }
         }
     } else {
         state.pan = None;
-        // state.is_panning = false;
-        // state.pan_offset_start = state.pan_offset_world_space;
     }
 }
-
-// fn smooth_pan(state: &mut OrbitCameraState, config: &OrbitCameraConfig, dt: f32) {
-//     if let Some(pan_state) = &state.pan {
-//         let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
-//         if smoothing > 0.0 {
-//             pan_state.offset_world_space +=
-//                 (pan_state.offset_target - pan_state.offset_world_space) * smoothing;
-//         } else {
-//             pan_state.offset_world_space = pan_state.offset_target;
-//         }
-//     }
-// }
 
 fn update_position(
     config: &OrbitCameraConfig,
@@ -262,31 +235,32 @@ fn update_position(
         );
     }
 
-    // smooth_pan(state, config, dt);
-
     let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
     let radius = state.radius.max(f64::EPSILON);
 
     // if smoothing > 0.0 {
-    // let current_pan_rotation = DQuat::from_rotation_arc(
-    //     DVec3::X,
-    //     DVec3::from(camera_transform.translation / radius as f32),
-    // );
 
-    if let Some(pan_state) = &state.pan {
-        camera_transform.translation = (DVec3::from(camera_transform.translation))
-            .rotate_towards(pan_state.current_world_space, -0.01)
-            .as_vec3();
+    // if let Some(pan_state) = &state.pan {
+    if state.pan.is_some() {
+        let current_pan_rotation = DQuat::from_rotation_arc(
+            DVec3::X,
+            DVec3::from(camera_transform.translation / radius as f32),
+        );
+        // camera_transform.translation = (DVec3::from(camera_transform.translation))
+        //     .rotate_towards(pan_state.current_world_space, 0.01)
+        //     .as_vec3();
+
+        camera_transform.translation =
+            ((DQuat::slerp(current_pan_rotation, state.pan_rotation_target, smoothing) * DVec3::X)
+                * radius)
+                .as_vec3();
     }
+    // }
 
     // state.pan_rotation_target = -DQuat::from_rotation_arc(
     //     pan_state.start_world_space.normalize(),
     //     mouse_pos_world_space.normalize(),
     // );
-
-    // camera_transform.translation =
-    //     ((DQuat::slerp(pan_rotation_target, current_pan_rotation, smoothing) * DVec3::X) * radius)
-    //         .as_vec3();
 
     // let pan_rotation_target = state.pan_rotation_target * current_pan_rotation;
 
@@ -298,35 +272,6 @@ fn update_position(
     // camera_transform.translation = Vec3::X * -radius as f32;
     // }
     camera_transform.look_at(Vec3::ZERO, Vec3::Y);
-
-    // DQuat::slerp(self, end, s)
-
-    // // let center = state.position_target + state.pan_offset_world_space;
-
-    // let yaw_rad = state.current_euler_angles.y.to_radians();
-    // let pitch_rad = state.current_euler_angles.x.to_radians();
-
-    // let cos_pitch = pitch_rad.cos();
-    // let sin_pitch = pitch_rad.sin();
-    // let sin_yaw = yaw_rad.sin();
-    // let cos_yaw = yaw_rad.cos();
-
-    // let offset = Vec3::new(
-    //     radius * cos_pitch * sin_yaw,
-    //     radius * sin_pitch,
-    //     radius * cos_pitch * cos_yaw,
-    // );
-
-    // let new_translation = center + offset;
-    // let position_changed =
-    //     (new_translation - camera_transform.translation).length_squared() > POSITION_EPSILON;
-
-    // camera_transform.translation = new_translation;
-
-    // let look_target = center;
-    // if (new_translation - look_target).length_squared() > f32::EPSILON {
-    //     camera_transform.look_at(look_target, Vec3::Y);
-    // }
 }
 
 pub fn step(
