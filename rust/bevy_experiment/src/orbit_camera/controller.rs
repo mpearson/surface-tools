@@ -194,19 +194,28 @@ fn update_pan_targets(
             //     camera_transform,
             //     0.0,
             // ) {
+
             if let Some(mouse_pos_world_space) = cursor_to_world_on_sphere(
                 pan_state.start_screen_space + pan_state.offset_screen_space,
                 camera,
-                &pan_state.start_camera_transform,
+                // &pan_state.start_camera_transform,
+                camera_transform,
                 pan_state.start_radius as f32,
             ) {
                 pan_state.current_world_space = mouse_pos_world_space;
-
-                state.pan_rotation_target = DQuat::from_rotation_arc(
-                    mouse_pos_world_space.normalize(),
-                    pan_state.start_world_space.normalize(),
-                );
             }
+
+            state.pan_rotation_target = DQuat::from_rotation_arc(
+                pan_state.current_world_space.normalize(),
+                pan_state.start_world_space.normalize(),
+            );
+            // } else {
+            //     // state.pan_rotation_target = DQuat::IDENTITY;
+            //     state.pan_rotation_target = DQuat::from_rotation_arc(
+            //         mouse_pos_world_space.normalize(),
+            //         pan_state.start_world_space.normalize(),
+            //     );
+            // }
         }
     } else {
         state.pan = None;
@@ -225,12 +234,12 @@ fn update_position(
     if let Some(pan_state) = &state.pan {
         gizmos.sphere(
             Isometry3d::from_translation(pan_state.start_world_space.as_vec3()),
-            0.1,
+            0.05,
             Color::srgb(1.0, 0.0, 0.0),
         );
         gizmos.sphere(
             Isometry3d::from_translation(pan_state.current_world_space.as_vec3()),
-            0.1,
+            0.05,
             Color::srgb(0.0, 1.0, 0.0),
         );
     }
@@ -242,19 +251,37 @@ fn update_position(
 
     // if let Some(pan_state) = &state.pan {
     if state.pan.is_some() {
-        let current_pan_rotation = DQuat::from_rotation_arc(
-            DVec3::X,
-            DVec3::from(camera_transform.translation / radius as f32),
-        );
+        // let current_pan_rotation = DQuat::from_rotation_arc(
+        //     DVec3::X,
+        //     DVec3::from(camera_transform.translation / radius as f32),
+        // );
         // camera_transform.translation = (DVec3::from(camera_transform.translation))
         //     .rotate_towards(pan_state.current_world_space, 0.01)
         //     .as_vec3();
 
+        let delta_rotation = DQuat::slerp(DQuat::IDENTITY, state.pan_rotation_target, smoothing);
+
         camera_transform.translation =
-            ((DQuat::slerp(current_pan_rotation, state.pan_rotation_target, smoothing) * DVec3::X)
-                * radius)
+            ((delta_rotation * camera_transform.translation.as_dvec3().normalize()) * radius)
                 .as_vec3();
+
+        // let original_yaw = camera_transform.rotation.to_euler(EulerRot::XYZ).1;
+
+        // let mut new_rotation =
+        //     (delta_rotation.as_quat() * camera_transform.rotation).to_euler(EulerRot::XYZ);
+        // new_rotation.1 = 0.0;
+        // camera_transform.rotation = Quat::from_euler(
+        //     EulerRot::XYZ,
+        //     new_rotation.0,
+        //     new_rotation.1,
+        //     new_rotation.2,
+        // );
+        //  (delta_rotation.as_quat());
+        camera_transform.rotate(delta_rotation.as_quat());
+    } else {
+        camera_transform.translation = camera_transform.translation.normalize() * radius as f32;
     }
+
     // }
 
     // state.pan_rotation_target = -DQuat::from_rotation_arc(
@@ -271,7 +298,7 @@ fn update_position(
     // camera_transform.translation = camera_transform.translation.normalize() * radius as f32;
     // camera_transform.translation = Vec3::X * -radius as f32;
     // }
-    camera_transform.look_at(Vec3::ZERO, Vec3::Y);
+    // camera_transform.look_at(Vec3::ZERO, Vec3::Y); // camera_transform.up());
 }
 
 pub fn step(

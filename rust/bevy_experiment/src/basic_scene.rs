@@ -1,5 +1,5 @@
-use bevy::prelude::*;
-use std::f32::consts::TAU;
+use bevy::{math::ops::sqrt, prelude::*};
+use std::f32::consts::{PI, TAU};
 
 // #[derive(Component)]
 // pub struct CubeRotator {
@@ -26,8 +26,11 @@ pub fn spawn_cube(
             .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
     ));
     // cube
+    let cube_size = 1.0;
+    // let cube_size = 2.0 / sqrt(3.0);
+
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+        Mesh3d(meshes.add(Cuboid::new(cube_size, cube_size, cube_size))),
         MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
