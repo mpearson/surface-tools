@@ -103,36 +103,35 @@ fn update_orbit(
     state.current_euler_angles.z = 0.0;
 }
 
-// fn cursor_to_world_on_plane(
-//     cursor: Vec2,
-//     camera: &Camera,
-//     camera_transform: &GlobalTransform,
-//     plane_height: f32,
-// ) -> Option<DVec3> {
-//     let viewport_pos = Vec2::new(cursor.x, cursor.y);
-//     let ray = camera
-//         .viewport_to_world(camera_transform, viewport_pos)
-//         .ok()?;
-//     let plane_origin = Vec3::new(0.0, plane_height, 0.0);
-//     let plane = InfinitePlane3d::new(Vec3::Y);
+fn _cursor_to_world_on_plane(
+    cursor: Vec2,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+    plane_height: f32,
+) -> Option<DVec3> {
+    let viewport_pos = Vec2::new(cursor.x, cursor.y);
+    let ray = camera
+        .viewport_to_world(camera_transform, viewport_pos)
+        .ok()?;
+    let plane_origin = Vec3::new(0.0, plane_height, 0.0);
+    let plane = InfinitePlane3d::new(Vec3::Y);
 
-//     let Some(distance) = ray.intersect_plane(plane_origin, plane) else {
-//         return None;
-//     };
+    let Some(distance) = ray.intersect_plane(plane_origin, plane) else {
+        return None;
+    };
 
-//     let intersection = ray.get_point(distance);
-//     Some(DVec3::new(
-//         intersection.x as f64,
-//         plane_height as f64,
-//         intersection.z as f64,
-//     ))
-// }
+    let intersection = ray.get_point(distance);
+    Some(DVec3::new(
+        intersection.x as f64,
+        plane_height as f64,
+        intersection.z as f64,
+    ))
+}
 
 fn cursor_to_world_on_sphere(
     cursor: Vec2,
     camera: &Camera,
     camera_transform: &GlobalTransform,
-    // sphere_center: Vec3,
     sphere_radius: f32,
 ) -> Option<DVec3> {
     let viewport_pos = Vec2::new(cursor.x, cursor.y);
@@ -140,7 +139,6 @@ fn cursor_to_world_on_sphere(
         .viewport_to_world(camera_transform, viewport_pos)
         .ok()?;
     let ray_cast = RayCast3d::from_ray(ray, f32::MAX);
-    // let sphere = BoundingSphere::new(sphere_center, sphere_radius);
     let sphere = BoundingSphere::new(Vec3::ZERO, sphere_radius);
 
     let distance = ray_cast.sphere_intersection_at(&sphere)?;
@@ -176,29 +174,19 @@ fn update_pan_targets(
                     start_world_space,
                     start_radius: start_world_space.length(),
                     current_world_space: start_world_space,
-                    start_camera_transform: camera_transform.clone(),
                 });
             } else {
                 state.pan = None;
             }
         } else if let Some(pan_state) = state.pan.as_mut() {
             // Already panning, so just update the scren-space offset with the latest delta.
-            // state.pan_cursor_position += Vec2::new(pan_delta.x, pan_delta.y);
             pan_state.offset_screen_space += Vec2::new(pan_delta.x, pan_delta.y);
         }
 
         if let Some(pan_state) = state.pan.as_mut() {
-            // if let Some(mouse_pos_world_space) = cursor_to_world_on_plane(
-            //     pan_state.start_screen_space + pan_state.offset_screen_space,
-            //     camera,
-            //     camera_transform,
-            //     0.0,
-            // ) {
-
             if let Some(mouse_pos_world_space) = cursor_to_world_on_sphere(
                 pan_state.start_screen_space + pan_state.offset_screen_space,
                 camera,
-                // &pan_state.start_camera_transform,
                 camera_transform,
                 pan_state.start_radius as f32,
             ) {
@@ -209,13 +197,6 @@ fn update_pan_targets(
                 pan_state.current_world_space.normalize(),
                 pan_state.start_world_space.normalize(),
             );
-            // } else {
-            //     // state.pan_rotation_target = DQuat::IDENTITY;
-            //     state.pan_rotation_target = DQuat::from_rotation_arc(
-            //         mouse_pos_world_space.normalize(),
-            //         pan_state.start_world_space.normalize(),
-            //     );
-            // }
         }
     } else {
         state.pan = None;
@@ -247,31 +228,19 @@ fn update_position(
     let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
     let radius = state.radius.max(f64::EPSILON);
 
-    // if smoothing > 0.0 {
-
-    // if let Some(pan_state) = &state.pan {
     if state.pan.is_some() {
-        // let current_pan_rotation = DQuat::from_rotation_arc(
-        //     DVec3::X,
-        //     DVec3::from(camera_transform.translation / radius as f32),
-        // );
-        // camera_transform.translation = (DVec3::from(camera_transform.translation))
-        //     .rotate_towards(pan_state.current_world_space, 0.01)
-        //     .as_vec3();
-
         let delta_rotation = DQuat::slerp(DQuat::IDENTITY, state.pan_rotation_target, smoothing);
 
         camera_transform.translation =
             ((delta_rotation * camera_transform.translation.as_dvec3().normalize()) * radius)
                 .as_vec3();
 
-        // let original_yaw = camera_transform.rotation.to_euler(EulerRot::XYZ).1;
-
+        // let original_roll = camera_transform.rotation.to_euler(EulerRot::ZXY).0;
         // let mut new_rotation =
-        //     (delta_rotation.as_quat() * camera_transform.rotation).to_euler(EulerRot::XYZ);
-        // new_rotation.1 = 0.0;
+        //     (delta_rotation.as_quat() * camera_transform.rotation).to_euler(EulerRot::ZXY);
+        // new_rotation.0 = 0.0;
         // camera_transform.rotation = Quat::from_euler(
-        //     EulerRot::XYZ,
+        //     EulerRot::ZXY,
         //     new_rotation.0,
         //     new_rotation.1,
         //     new_rotation.2,
@@ -282,22 +251,6 @@ fn update_position(
         camera_transform.translation = camera_transform.translation.normalize() * radius as f32;
     }
 
-    // }
-
-    // state.pan_rotation_target = -DQuat::from_rotation_arc(
-    //     pan_state.start_world_space.normalize(),
-    //     mouse_pos_world_space.normalize(),
-    // );
-
-    // let pan_rotation_target = state.pan_rotation_target * current_pan_rotation;
-
-    // camera_transform.translation =
-    //     ((DQuat::slerp(pan_rotation_target, current_pan_rotation, smoothing) * DVec3::X) * radius)
-    //         .as_vec3();
-    // } else {
-    // camera_transform.translation = camera_transform.translation.normalize() * radius as f32;
-    // camera_transform.translation = Vec3::X * -radius as f32;
-    // }
     // camera_transform.look_at(Vec3::ZERO, Vec3::Y); // camera_transform.up());
 }
 

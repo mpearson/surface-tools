@@ -19,7 +19,6 @@ pub struct PanState {
     pub start_world_space: DVec3,
     pub start_radius: f64,
     pub current_world_space: DVec3,
-    pub start_camera_transform: GlobalTransform,
 }
 
 // The internal state of the pan-orbit controller
@@ -42,7 +41,6 @@ pub struct OrbitCameraState {
     // pub drag_start_point: Vec3,
     // pub drag_start_lat_lon: Vec3, // TODO: use lat lon!
     pub right_click_start: Vec3,
-    //    pub cam:  Camera,
     pub zoom_level_target: f64,
     pub current_zoom_level: f64,
     pub current_euler_angles: Vec3,
@@ -56,19 +54,10 @@ impl Default for OrbitCameraState {
         Self {
             // center: Wgs84Llh::default(),
             radius: 20.0,
-            // upside_down: false,
             // elevation: 45.0f64.to_radians(),
             // heading: 0.0f64.to_radians(),
             pan_rotation_target: DQuat::IDENTITY,
             pan: None,
-            // pan_start_screen_space: Vec2::ZERO,
-            // pan_offset_screen_space: Vec2::ZERO,
-            // pan_start_world_space: DVec2::ZERO,
-            // pan_offset_world_space: DVec2::ZERO,
-            // pan_offset_target: Vec3::ZERO,
-            // pan_offset_start: Vec3::ZERO,
-            // drag_start_point: Vec3::ZERO,
-            // drag_start_lat_lon: Vec3::ZERO,
             right_click_start: Vec3::ZERO,
             zoom_level_target: 0.0,
             current_zoom_level: 0.0,
@@ -79,29 +68,3 @@ impl Default for OrbitCameraState {
         }
     }
 }
-
-// /// A 3rd person camera that orbits around the target.
-// #[derive(Clone, Component, Copy, Debug, Reflect)]
-// #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-// #[reflect(Component, Default, Debug)]
-// pub struct OrbitCameraController {
-//     pub enabled: bool,
-//     pub mouse_rotate_sensitivity: Vec2,
-//     pub mouse_translate_sensitivity: Vec2,
-//     pub mouse_wheel_zoom_sensitivity: f32,
-//     pub pixels_per_line: f32,
-//     pub smoothing_weight: f32,
-// }
-
-// impl Default for OrbitCameraController {
-//     fn default() -> Self {
-//         Self {
-//             mouse_rotate_sensitivity: Vec2::splat(0.08),
-//             mouse_translate_sensitivity: Vec2::splat(0.1),
-//             mouse_wheel_zoom_sensitivity: 0.2,
-//             smoothing_weight: 0.8,
-//             enabled: true,
-//             pixels_per_line: 53.0,
-//         }
-//     }
-// }
