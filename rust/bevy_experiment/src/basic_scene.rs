@@ -18,19 +18,18 @@ pub fn spawn_cube(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // circular base
-    commands.spawn((
-        Mesh3d(meshes.add(Rectangle::new(8.0, 8.0))),
-        MeshMaterial3d(materials.add(Color::WHITE)),
-        Transform::from_translation(Vec3::new(0.0, -0.5, 0.0))
-            .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-    ));
-    // cube
-    let cube_size = 1.0;
-    // let cube_size = 2.0 / sqrt(3.0);
+    // XZ plane
+    // commands.spawn((
+    //     Mesh3d(meshes.add(Rectangle::new(8.0, 8.0))),
+    //     MeshMaterial3d(materials.add(Color::WHITE)),
+    //     Transform::from_translation(Vec3::new(0.0, -0.5, 0.0))
+    //         .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+    // ));
+    // icosahedron
+    let radius = 1.0;
 
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(cube_size, cube_size, cube_size))),
+        Mesh3d(meshes.add(Sphere::new(radius).mesh().ico(0).unwrap())),
         MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
@@ -52,11 +51,16 @@ pub fn spawn_cube(
 //     }
 // }
 
+pub fn draw_axes_gizmo(mut gizmos: Gizmos) {
+    gizmos.axes(Transform::IDENTITY, 2.0);
+}
+
 pub struct BasicScenePlugin;
 
 impl Plugin for BasicScenePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (spawn_cube,));
+        app.add_systems(Startup, (spawn_cube,))
+            .add_systems(Update, draw_axes_gizmo);
         // .add_systems(Update, (basic_scene::rotate_cube,));
         // .add_systems(Startup, test_system::print_map_tiles)
         // .add_systems(Update, test_system::print_map_tiles);
