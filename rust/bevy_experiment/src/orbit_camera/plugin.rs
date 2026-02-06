@@ -1,19 +1,9 @@
-// use bevy::math;
-// use std::env;
-// use bevy::prelude::*;
 use bevy::{
     app::prelude::*,
     camera::{Camera, ClearColorConfig},
     color::Color,
-    ecs::{bundle::Bundle, prelude::*},
-    input::{
-        mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
-        prelude::*,
-    },
-    math::prelude::*,
-    prelude::{default, Camera3d, ReflectDefault},
-    reflect::Reflect,
-    time::Time,
+    ecs::prelude::*,
+    prelude::{default, Camera3d, Visibility},
     transform::components::Transform,
 };
 
@@ -24,59 +14,36 @@ use crate::orbit_camera::state;
 
 #[derive(Default)]
 pub struct OrbitCameraPlugin;
-//  {
-// pub override_input_system: bool,
-// }
 
-// impl OrbitCameraPlugin {
-//     pub fn new(override_input_system: bool) -> Self {
-//         Self {
-//             override_input_system,
-//         }
-//     }
-// }
+/// Marker component for the camera pivot entity (parent of the actual camera).
+#[derive(Component, Default)]
+pub struct CameraPivot;
 
-// Bundle to spawn our custom camera easily
-#[derive(Bundle, Default)]
-pub struct PanOrbitCameraBundle {
-    pub camera3d: Camera3d,
-    pub camera: Camera,
-    pub state: state::OrbitCameraState,
-    pub config: config::OrbitCameraConfig,
-    pub transform: Transform,
-}
-
-/// create the actual camera object
+/// Spawn the camera pivot (parent) with the actual camera as a child entity.
 pub fn spawn_camera(mut commands: Commands) {
-    commands.spawn(PanOrbitCameraBundle {
-        camera3d: Camera3d::default(),
-        camera: Camera {
-            clear_color: ClearColorConfig::Custom(Color::srgb_u8(80, 87, 105)),
-            ..default()
-        },
-        // state: state::OrbitCameraState::default(),
-        transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-        // transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
-    // commands.spawn(Camera3dBundle {
-    //     transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-    //     ..default()
-    // });
+    commands
+        .spawn((
+            CameraPivot,
+            state::OrbitCameraState::default(),
+            config::OrbitCameraConfig::default(),
+            Transform::default(),
+            Visibility::default(),
+        ))
+        .with_child((
+            Camera3d::default(),
+            Camera {
+                clear_color: ClearColorConfig::Custom(Color::srgb_u8(80, 87, 105)),
+                ..default()
+            },
+            Transform::default(),
+        ));
 }
 
 impl Plugin for OrbitCameraPlugin {
     fn build(&self, app: &mut App) {
-        // let app = app
-        app
-            // .add_systems(PreUpdate, on_controller_enabled_changed)
-            .add_systems(Startup, spawn_camera)
+        app.add_systems(Startup, spawn_camera)
             .add_systems(PreUpdate, events::step)
             .add_systems(Update, controller::step)
             .add_message::<events::OrbitCameraInputEvent>();
-
-        // if !self.override_input_system {
-        //     app.add_systems(Update, default_input_map);
-        // }
     }
 }
