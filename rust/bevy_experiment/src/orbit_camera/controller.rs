@@ -214,6 +214,7 @@ fn update_pivot(
 
     // Update pivot transform from f64 state
     pivot_transform.rotation = state.camera_center_rotation.as_quat();
+    pivot_transform.translation = state.camera_center_world_space.as_vec3();
 }
 
 /// Position the camera in the pivot's local space using orbit euler angles and radius.
