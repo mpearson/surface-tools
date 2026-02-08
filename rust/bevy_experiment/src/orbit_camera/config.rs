@@ -85,8 +85,8 @@ impl Default for OrbitCameraConfig {
             orbit_smoothing: 20.0,
             zoom_smoothing: 5.0,
 
-            max_distance: 100.0,
-            min_distance: 2.0,
+            max_distance: 10.0,
+            min_distance: 0.5,
             min_zoom: 4.0,
             max_zoom: 22.0,
             min_theta: -80.0,
