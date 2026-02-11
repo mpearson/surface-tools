@@ -5,7 +5,6 @@ pub struct PanState {
     pub offset_screen_space: Vec2,
     pub start_world_space: DVec3,
     pub start_radius: f64,
-    pub current_world_space: DVec3,
 }
 
 // The internal state of the pan-orbit controller
@@ -15,11 +14,11 @@ pub struct OrbitCameraState {
 
     /// f64-precision rotation of the camera pivot (source of truth for pan).
     /// The pivot entity's Transform.rotation is derived from this each frame.
-    pub camera_center_rotation: DQuat,
+    pub camera_rig_rotation: DQuat,
 
     /// Point on the earth surface the camera is centered on.
     /// Derived each frame from camera_center_rotation.
-    pub camera_center_world_space: DVec3,
+    pub camera_rig_position_world_space: DVec3,
 
     pub pan_rotation_target: DQuat,
     pub pan: Option<PanState>,
@@ -35,8 +34,8 @@ impl Default for OrbitCameraState {
     fn default() -> Self {
         Self {
             radius: 20.0,
-            camera_center_rotation: DQuat::IDENTITY,
-            camera_center_world_space: DVec3::new(0.0, 0.0, 1.0),
+            camera_rig_rotation: DQuat::IDENTITY,
+            camera_rig_position_world_space: DVec3::new(0.0, 0.0, 1.0),
             pan_rotation_target: DQuat::IDENTITY,
             pan: None,
             right_click_start: Vec3::ZERO,
