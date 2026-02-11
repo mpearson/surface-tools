@@ -83,10 +83,10 @@ impl Default for OrbitCameraConfig {
 
             pan_smoothing: 200.0,
             orbit_smoothing: 100.0,
-            zoom_smoothing: 40.0,
+            zoom_smoothing: 100.0,
 
             max_distance: 10.0,
-            min_distance: 0.5,
+            min_distance: 0.1,
             min_zoom: 1.0,
             max_zoom: 22.0,
             min_pitch: 0.0,

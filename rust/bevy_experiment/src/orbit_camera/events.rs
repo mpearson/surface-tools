@@ -21,6 +21,7 @@ pub struct OrbitCameraInputEvent {
     pub pan_delta: Option<Vec2>,
     pub orbit_delta: Option<Vec2>,
     pub zoom_delta: f64,
+    pub zoom_start_cursor_position: Option<Vec2>,
 }
 
 /// Mouse input mapping system.
@@ -90,10 +91,18 @@ pub fn step(
         };
         zoom_delta -= scroll_amount as f64 * zoom_sensitivity;
     }
+
+    let zoom_start_cursor_position = if zoom_delta != 0.0 {
+        window.cursor_position()
+    } else {
+        None
+    };
+
     events.write(OrbitCameraInputEvent {
         pan_start_screen_space,
         pan_delta,
         orbit_delta,
         zoom_delta,
+        zoom_start_cursor_position,
     });
 }
