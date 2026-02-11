@@ -125,22 +125,18 @@ fn cursor_to_world_on_sphere(
 }
 
 fn update_position_target(
-    config: &OrbitCameraConfig,
+    // config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
     input: &OrbitCameraInputEvent,
     camera: &Camera,
     camera_transform: &GlobalTransform,
+    cursor_world_space: &Option<Vec3>,
     gizmos: &mut Gizmos,
 ) {
     if let Some(pan_delta) = input.pan_delta {
         if let Some(pan_start_screen_space) = input.pan_start_screen_space {
-            if let Some(cursor_world_space) = cursor_to_world_on_sphere(
-                pan_start_screen_space,
-                camera,
-                camera_transform,
-                config.earth_radius,
-            ) {
-                let start_world_space = DVec3::from(cursor_world_space);
+            if let Some(cursor_world_space) = cursor_world_space {
+                let start_world_space = cursor_world_space.as_dvec3();
                 state.pan = Some(PanState {
                     start_screen_space: pan_start_screen_space,
                     offset_screen_space: Vec2::ZERO,
@@ -250,12 +246,26 @@ pub fn step(
         if let Ok((camera_entity, camera, camera_global_transform)) =
             cameras.get(child_ref.camera_entity)
         {
+            // Calculate cursor world position if we have a pan start position
+            let cursor_world_space =
+                if let Some(pan_start_screen_space) = input.pan_start_screen_space {
+                    cursor_to_world_on_sphere(
+                        pan_start_screen_space,
+                        camera,
+                        camera_global_transform,
+                        config.earth_radius,
+                    )
+                } else {
+                    None
+                };
+
             update_position_target(
-                config,
+                // config,
                 &mut state,
                 &input,
                 camera,
                 camera_global_transform,
+                &cursor_world_space,
                 &mut gizmos,
             );
             update_zoom(config, &mut state, input.zoom_delta, frame_dt);
