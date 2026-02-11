@@ -162,8 +162,6 @@ fn update_orbit(
         state.current_euler_angles.x -= 360.0;
     } else if state.current_euler_angles.x < -180.0 {
         state.current_euler_angles.x += 360.0;
-    } else if state.current_euler_angles.x > 90.0 {
-        state.current_euler_angles.x = 0.0;
     }
 
     state.current_euler_angles.x = state
