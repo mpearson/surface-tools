@@ -16,27 +16,36 @@ use crate::orbit_camera::state;
 pub struct OrbitCameraPlugin;
 
 /// Marker component for the camera pivot entity (parent of the actual camera).
-#[derive(Component, Default)]
-pub struct CameraPivot;
+#[derive(Component)]
+pub struct OrbitCameraRig;
+
+#[derive(Component)]
+pub struct OrbitCameraChildRef {
+    pub camera_entity: Entity,
+}
 
 /// Spawn the camera pivot (parent) with the actual camera as a child entity.
 pub fn spawn_camera(mut commands: Commands) {
-    commands
+    let camera_entity = commands
         .spawn((
-            CameraPivot,
-            state::OrbitCameraState::default(),
-            config::OrbitCameraConfig::default(),
-            Transform::default(),
-            Visibility::default(),
-        ))
-        .with_child((
             Camera3d::default(),
             Camera {
                 clear_color: ClearColorConfig::Custom(Color::srgb_u8(80, 87, 105)),
                 ..default()
             },
             Transform::default(),
-        ));
+        ))
+        .id();
+    commands
+        .spawn((
+            OrbitCameraRig,
+            OrbitCameraChildRef { camera_entity },
+            state::OrbitCameraState::default(),
+            config::OrbitCameraConfig::default(),
+            Transform::default(),
+            Visibility::default(),
+        ))
+        .add_child(camera_entity);
 }
 
 impl Plugin for OrbitCameraPlugin {

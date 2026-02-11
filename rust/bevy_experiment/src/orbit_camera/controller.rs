@@ -15,7 +15,7 @@ use bevy::{
 
 use crate::orbit_camera::{
     events::OrbitCameraInputEvent,
-    plugin::CameraPivot,
+    plugin::{OrbitCameraChildRef, OrbitCameraRig},
     state::{OrbitCameraState, PanState},
 };
 
@@ -108,7 +108,7 @@ fn cursor_to_world_on_sphere(
     camera: &Camera,
     camera_transform: &GlobalTransform,
     sphere_radius: f32,
-) -> Option<DVec3> {
+) -> Option<Vec3> {
     let viewport_pos = Vec2::new(cursor.x, cursor.y);
     let ray = camera
         .viewport_to_world(camera_transform, viewport_pos)
@@ -119,35 +119,31 @@ fn cursor_to_world_on_sphere(
     let distance = ray_cast.sphere_intersection_at(&sphere)?;
 
     let intersection = ray.get_point(distance);
-    Some(DVec3::new(
-        intersection.x as f64,
-        intersection.y as f64,
-        intersection.z as f64,
-    ))
+    Some(intersection)
 }
 
-fn update_pan_targets(
+fn update_position_target(
     config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
     input: &OrbitCameraInputEvent,
     camera: &Camera,
     camera_transform: &GlobalTransform,
+    gizmos: &mut Gizmos,
 ) {
     if let Some(pan_delta) = input.pan_delta {
         if let Some(pan_start_screen_space) = input.pan_start_screen_space {
-            if let Some(pan_start_world_space) = cursor_to_world_on_sphere(
+            if let Some(cursor_world_space) = cursor_to_world_on_sphere(
                 pan_start_screen_space,
                 camera,
                 camera_transform,
                 config.earth_radius,
             ) {
-                let start_world_space = DVec3::from(pan_start_world_space);
+                let start_world_space = DVec3::from(cursor_world_space);
                 state.pan = Some(PanState {
                     start_screen_space: pan_start_screen_space,
                     offset_screen_space: Vec2::ZERO,
                     start_world_space,
                     start_radius: start_world_space.length(),
-                    current_world_space: start_world_space,
                 });
             } else {
                 state.pan = None;
@@ -164,12 +160,23 @@ fn update_pan_targets(
                 camera_transform,
                 pan_state.start_radius as f32,
             ) {
-                pan_state.current_world_space = mouse_pos_world_space;
+                state.pan_rotation_target = DQuat::from_rotation_arc(
+                    mouse_pos_world_space.as_dvec3().normalize(),
+                    pan_state.start_world_space.normalize(),
+                );
+                // Debug gizmo for current mouse position on sphere
+                gizmos.sphere(
+                    Isometry3d::from_translation(mouse_pos_world_space),
+                    0.05,
+                    Color::srgb(0.0, 1.0, 0.0),
+                );
             }
 
-            state.pan_rotation_target = DQuat::from_rotation_arc(
-                pan_state.current_world_space.normalize(),
-                pan_state.start_world_space.normalize(),
+            // Debug gizmos for initial mouse position on sphere
+            gizmos.sphere(
+                Isometry3d::from_translation(pan_state.start_world_space.as_vec3()),
+                0.05,
+                Color::srgb(1.0, 0.0, 0.0),
             );
         }
     } else {
@@ -177,70 +184,51 @@ fn update_pan_targets(
     }
 }
 
-/// Apply pan rotation to the pivot's f64 state and sync to the pivot's Transform.
-fn update_pivot(
+fn update_camera_rig_rotation(
     config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
-    pivot_transform: &mut Transform,
-    gizmos: &mut Gizmos,
+    camera_rig_transform: &mut Transform,
     dt: f32,
 ) {
-    gizmos.sphere(Vec3::ZERO, config.earth_radius as f32, Color::WHITE);
-
-    // Debug gizmos for pan positions
-    if let Some(pan_state) = &state.pan {
-        gizmos.sphere(
-            Isometry3d::from_translation(pan_state.start_world_space.as_vec3()),
-            0.05,
-            Color::srgb(1.0, 0.0, 0.0),
-        );
-        gizmos.sphere(
-            Isometry3d::from_translation(pan_state.current_world_space.as_vec3()),
-            0.05,
-            Color::srgb(0.0, 1.0, 0.0),
-        );
-    }
-
     let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
 
     if state.pan.is_some() {
         let delta_rotation = DQuat::slerp(DQuat::IDENTITY, state.pan_rotation_target, smoothing);
-        state.camera_center_rotation = delta_rotation * state.camera_center_rotation;
+        state.camera_rig_rotation = delta_rotation * state.camera_rig_rotation;
     }
 
     // Derive world-space center point from rotation
-    state.camera_center_world_space =
-        state.camera_center_rotation * DVec3::new(0.0, 0.0, config.earth_radius as f64);
+    state.camera_rig_position_world_space =
+        state.camera_rig_rotation * DVec3::new(0.0, 0.0, config.earth_radius as f64);
 
-    // Update pivot transform from f64 state
-    pivot_transform.rotation = state.camera_center_rotation.as_quat();
-    pivot_transform.translation = state.camera_center_world_space.as_vec3();
+    // Update camera rig transform from f64 state
+    camera_rig_transform.rotation = state.camera_rig_rotation.as_quat();
+    camera_rig_transform.translation = state.camera_rig_position_world_space.as_vec3();
 }
 
-/// Position the camera in the pivot's local space using orbit euler angles and radius.
-fn update_camera_local(state: &OrbitCameraState, camera_transform: &mut Transform) {
+/// Position the camera in the camera rig's local space using orbit euler angles and radius.
+fn update_camera_rotation(state: &OrbitCameraState, camera_transform: &mut Transform) {
     let radius = state.radius.max(f64::EPSILON) as f32;
-    let pitch_rad = state.current_euler_angles.x.to_radians();
-    let yaw_rad = state.current_euler_angles.y.to_radians();
+    let pitch = state.current_euler_angles.x.to_radians();
+    let yaw = state.current_euler_angles.y.to_radians();
 
-    let orbit_rotation = Quat::from_euler(EulerRot::ZXY, yaw_rad, pitch_rad, 0.0);
+    let orbit_rotation = Quat::from_euler(EulerRot::ZXY, yaw, pitch, 0.0);
     camera_transform.translation = orbit_rotation * Vec3::new(0.0, 0.0, radius);
     camera_transform.rotation = orbit_rotation;
-
-    // DEBUG: remove after testing
-    // info!(
-    //     "update_camera_local: euler=({:.1}, {:.1}), translation={:?}",
-    //     state.current_euler_angles.x, state.current_euler_angles.y, camera_transform.translation
-    // );
 }
 
 pub fn step(
     time: Res<Time>,
     mut gizmos: Gizmos,
     mut input_reader: MessageReader<OrbitCameraInputEvent>,
-    mut pivots: Query<
-        (Entity, &OrbitCameraConfig, &mut OrbitCameraState, &Children),
-        With<CameraPivot>,
+    mut camera_rigs: Query<
+        (
+            Entity,
+            &OrbitCameraConfig,
+            &mut OrbitCameraState,
+            &OrbitCameraChildRef,
+        ),
+        With<OrbitCameraRig>,
     >,
     cameras: Query<(Entity, &Camera, &GlobalTransform)>,
     mut transforms: Query<&mut Transform>,
@@ -249,35 +237,36 @@ pub fn step(
         return;
     };
 
-    let frame_dt = time.delta_secs().min(0.02);
+    let frame_dt = time.delta_secs().min(0.001);
 
-    for (pivot_entity, config, mut state, children) in &mut pivots {
-        // Find the camera child entity
-        let Some(camera_entity) = children.iter().find(|e| cameras.contains(*e)) else {
-            continue;
-        };
-        let (_, camera, camera_global_transform) = cameras.get(camera_entity).unwrap();
+    for (camera_rig, config, mut state, child_ref) in &mut camera_rigs {
+        // Draw a wireframe sphere to help visualize camera movements
+        gizmos.sphere(Vec3::ZERO, config.earth_radius as f32, Color::WHITE);
 
-        update_pan_targets(config, &mut state, &input, camera, camera_global_transform);
-        update_zoom(config, &mut state, input.zoom_delta, frame_dt);
-        update_orbit(config, &mut state, input.orbit_delta, frame_dt);
-
-        // Update pivot transform (pan applies here)
+        // Get camera directly using the stored reference
+        if let Ok((camera_entity, camera, camera_global_transform)) =
+            cameras.get(child_ref.camera_entity)
         {
-            let mut pivot_transform = transforms.get_mut(pivot_entity).unwrap();
-            update_pivot(
+            update_position_target(
                 config,
                 &mut state,
-                &mut pivot_transform,
+                &input,
+                camera,
+                camera_global_transform,
                 &mut gizmos,
-                frame_dt,
             );
-        }
+            update_zoom(config, &mut state, input.zoom_delta, frame_dt);
+            update_orbit(config, &mut state, input.orbit_delta, frame_dt);
 
-        // Update camera local transform (orbit + zoom apply here)
-        {
-            let mut camera_transform = transforms.get_mut(camera_entity).unwrap();
-            update_camera_local(&state, &mut camera_transform);
+            {
+                let mut camera_rig_transform = transforms.get_mut(camera_rig).unwrap();
+                update_camera_rig_rotation(config, &mut state, &mut camera_rig_transform, frame_dt);
+            }
+
+            {
+                let mut camera_transform = transforms.get_mut(camera_entity).unwrap();
+                update_camera_rotation(&state, &mut camera_transform);
+            }
         }
     }
 }
