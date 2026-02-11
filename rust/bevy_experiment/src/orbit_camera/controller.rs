@@ -41,6 +41,8 @@ fn initialize_zoom_state(state: &mut OrbitCameraState) {
 fn update_zoom(config: &OrbitCameraConfig, state: &mut OrbitCameraState, zoom_delta: f64, dt: f32) {
     initialize_zoom_state(state);
 
+    // TODO: zoom such that the point under the mouse cursor doesn't move, *somehow*
+
     if zoom_delta != 0.0 {
         state.zoom_level_target -= zoom_delta;
     }
@@ -193,6 +195,7 @@ fn update_camera_rig_rotation(
     let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
 
     if state.pan.is_some() {
+        // TODO: hold the yaw angle constant unless the camera is near the poles
         let delta_rotation = DQuat::slerp(DQuat::IDENTITY, state.pan_rotation_target, smoothing);
         state.camera_rig_rotation = delta_rotation * state.camera_rig_rotation;
     }
@@ -258,6 +261,7 @@ pub fn step(
             update_zoom(config, &mut state, input.zoom_delta, frame_dt);
             update_orbit(config, &mut state, input.orbit_delta, frame_dt);
 
+            // TODO: figure out if there's a cleaner way to get to these transforms, ew
             {
                 let mut camera_rig_transform = transforms.get_mut(camera_rig).unwrap();
                 update_camera_rig_rotation(config, &mut state, &mut camera_rig_transform, frame_dt);
