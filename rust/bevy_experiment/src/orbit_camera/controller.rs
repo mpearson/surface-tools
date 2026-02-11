@@ -7,6 +7,7 @@ use bevy::{
         prelude::*,
         DQuat, DVec3,
     },
+    prelude::info,
     prelude::Camera,
     time::Time,
     transform::components::{GlobalTransform, Transform},
@@ -68,7 +69,7 @@ fn update_orbit(
     dt: f32,
 ) {
     if let Some(delta) = orbit_delta {
-        state.euler_angles_target_delta.x -= delta.y;
+        state.euler_angles_target_delta.x += delta.y;
         state.euler_angles_target_delta.y += delta.x;
     }
 
@@ -96,7 +97,7 @@ fn update_orbit(
     state.current_euler_angles.x = state
         .current_euler_angles
         .x
-        .clamp(config.min_theta, config.max_theta);
+        .clamp(config.min_pitch, config.max_pitch);
 
     state.current_euler_angles.y = state.current_euler_angles.y.rem_euclid(360.0);
     state.current_euler_angles.z = 0.0;
@@ -222,9 +223,15 @@ fn update_camera_local(state: &OrbitCameraState, camera_transform: &mut Transfor
     let pitch_rad = state.current_euler_angles.x.to_radians();
     let yaw_rad = state.current_euler_angles.y.to_radians();
 
-    let orbit_rotation = Quat::from_euler(EulerRot::ZXY, 0.0, pitch_rad, yaw_rad);
+    let orbit_rotation = Quat::from_euler(EulerRot::ZXY, yaw_rad, pitch_rad, 0.0);
     camera_transform.translation = orbit_rotation * Vec3::new(0.0, 0.0, radius);
     camera_transform.rotation = orbit_rotation;
+
+    // DEBUG: remove after testing
+    // info!(
+    //     "update_camera_local: euler=({:.1}, {:.1}), translation={:?}",
+    //     state.current_euler_angles.x, state.current_euler_angles.y, camera_transform.translation
+    // );
 }
 
 pub fn step(

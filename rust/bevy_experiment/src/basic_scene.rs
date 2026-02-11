@@ -29,7 +29,7 @@ pub fn spawn_cube(
     let radius = 1.0;
 
     commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(radius).mesh().ico(0).unwrap())),
+        Mesh3d(meshes.add(Sphere::new(radius).mesh().ico(3).unwrap())),
         MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));

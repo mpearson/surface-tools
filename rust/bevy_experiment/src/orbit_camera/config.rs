@@ -39,8 +39,8 @@ pub struct OrbitCameraConfig {
     pub min_distance: f64,
     pub min_zoom: f32,
     pub max_zoom: f32,
-    pub min_theta: f32,
-    pub max_theta: f32,
+    pub min_pitch: f32,
+    pub max_pitch: f32,
     // #############################################################################################
     // TODO: the minimum pitch angle should depend on the the zoom level. If you're super zoomed out,
     // you shouldn't be able to put the camera right against the ground, because this means the
@@ -89,8 +89,8 @@ impl Default for OrbitCameraConfig {
             min_distance: 0.5,
             min_zoom: 4.0,
             max_zoom: 22.0,
-            min_theta: -80.0,
-            max_theta: 80.0,
+            min_pitch: 0.0,
+            max_pitch: 90.0,
             // pan_sensitivity: 0.001,                 // 1000 pixels per world unit
             // orbit_sensitivity: 0.1f32.to_radians(), // 0.1 degree per pixel
             // zoom_sensitivity: 0.01,
