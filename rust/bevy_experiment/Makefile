@@ -12,7 +12,7 @@ BINDGEN_DIR := $(WASM_DIR)/wasm-bindgen
 
 
 # Define the default target
-all: build run
+all: run
 
 # Define the build target
 build:
@@ -23,8 +23,11 @@ build:
 
 # Define the run target
 run:
-	@echo "Running the project..."
-	python -m http.server --directory $(BINDGEN_DIR)
+	cargo run --target wasm32-unknown-unknown
+
+# run:
+# 	@echo "Running the project..."
+# 	python -m http.server --directory $(BINDGEN_DIR)
 
 # Define the clean target
 clean:

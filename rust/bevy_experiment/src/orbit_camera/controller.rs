@@ -203,8 +203,7 @@ fn update_pivot(
     let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
 
     if state.pan.is_some() {
-        let delta_rotation =
-            DQuat::slerp(DQuat::IDENTITY, state.pan_rotation_target, smoothing);
+        let delta_rotation = DQuat::slerp(DQuat::IDENTITY, state.pan_rotation_target, smoothing);
         state.camera_center_rotation = delta_rotation * state.camera_center_rotation;
     }
 
@@ -223,9 +222,9 @@ fn update_camera_local(state: &OrbitCameraState, camera_transform: &mut Transfor
     let pitch_rad = state.current_euler_angles.x.to_radians();
     let yaw_rad = state.current_euler_angles.y.to_radians();
 
-    let orbit_rotation = Quat::from_euler(EulerRot::YXZ, yaw_rad, pitch_rad, 0.0);
+    let orbit_rotation = Quat::from_euler(EulerRot::ZXY, 0.0, pitch_rad, yaw_rad);
     camera_transform.translation = orbit_rotation * Vec3::new(0.0, 0.0, radius);
-    camera_transform.look_at(Vec3::ZERO, Vec3::Y);
+    camera_transform.rotation = orbit_rotation;
 }
 
 pub fn step(
@@ -259,7 +258,13 @@ pub fn step(
         // Update pivot transform (pan applies here)
         {
             let mut pivot_transform = transforms.get_mut(pivot_entity).unwrap();
-            update_pivot(config, &mut state, &mut pivot_transform, &mut gizmos, frame_dt);
+            update_pivot(
+                config,
+                &mut state,
+                &mut pivot_transform,
+                &mut gizmos,
+                frame_dt,
+            );
         }
 
         // Update camera local transform (orbit + zoom apply here)
