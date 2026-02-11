@@ -1152,6 +1152,7 @@ dependencies = [
  "bevy_image 0.17.2",
  "bevy_input 0.17.2",
  "bevy_light",
+ "bevy_log 0.17.2",
  "bevy_math 0.17.2",
  "bevy_mesh 0.17.2",
  "bevy_pbr",
