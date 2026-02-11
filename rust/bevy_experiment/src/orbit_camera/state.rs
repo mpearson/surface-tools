@@ -7,6 +7,12 @@ pub struct PanState {
     pub start_radius: f64,
 }
 
+pub struct ZoomState {
+    pub start_cursor_screen_space: Vec2,
+    pub start_world_space: DVec3,
+    pub start_radius: f64,
+}
+
 // The internal state of the pan-orbit controller
 #[derive(Component)]
 pub struct OrbitCameraState {
@@ -23,6 +29,9 @@ pub struct OrbitCameraState {
     pub pan_rotation_target: DQuat,
     pub pan: Option<PanState>,
 
+    pub zoom_rotation_target: DQuat,
+    pub zoom: Option<ZoomState>,
+
     pub right_click_start: Vec3,
     pub zoom_level_target: f64,
     pub current_zoom_level: f64,
@@ -38,6 +47,8 @@ impl Default for OrbitCameraState {
             camera_rig_position_world_space: DVec3::new(0.0, 0.0, 1.0),
             pan_rotation_target: DQuat::IDENTITY,
             pan: None,
+            zoom_rotation_target: DQuat::IDENTITY,
+            zoom: None,
             right_click_start: Vec3::ZERO,
             zoom_level_target: 0.0,
             current_zoom_level: 0.0,
