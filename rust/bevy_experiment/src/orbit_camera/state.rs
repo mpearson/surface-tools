@@ -42,7 +42,7 @@ impl Default for OrbitCameraState {
             right_click_start: Vec3::ZERO,
             zoom_level_target: 0.0,
             current_zoom_level: 0.0,
-            current_euler_angles: Vec3::new(45.0, 0.0, 0.0),
+            current_euler_angles: Vec3::new(0.0, 0.0, 0.0),
             euler_angles_target_delta: Vec3::ZERO,
         }
     }
