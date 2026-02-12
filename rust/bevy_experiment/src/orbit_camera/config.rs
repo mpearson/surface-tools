@@ -37,8 +37,8 @@ pub struct OrbitCameraConfig {
     // pub orbit_sensitivity_y: f32,
     pub max_distance: f64,
     pub min_distance: f64,
-    pub min_zoom: f32,
-    pub max_zoom: f32,
+    // pub min_zoom: f32,
+    // pub max_zoom: f32,
     pub min_pitch: f32,
     pub max_pitch: f32,
     // #############################################################################################
@@ -93,8 +93,8 @@ impl Default for OrbitCameraConfig {
 
             max_distance: 10.0,
             min_distance: 0.1,
-            min_zoom: 1.0,
-            max_zoom: 22.0,
+            // min_zoom: 1.0,
+            // max_zoom: 22.0,
             min_pitch: 0.0,
             max_pitch: 90.0,
             // pan_key: Some(KeyCode::ControlLeft),
