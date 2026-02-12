@@ -54,12 +54,9 @@ fn update_zoom(
     if zoom_delta != 0.0 {
         if let Some(cursor_pos) = zoom_start_cursor_position {
             // Starting a new zoom operation - capture the world position under the cursor
-            if let Some(world_pos) = cursor_to_world_on_sphere(
-                cursor_pos,
-                camera,
-                camera_transform,
-                config.earth_radius,
-            ) {
+            if let Some(world_pos) =
+                cursor_to_world_on_sphere(cursor_pos, camera, camera_transform, config.earth_radius)
+            {
                 state.zoom = Some(ZoomState {
                     start_cursor_screen_space: cursor_pos,
                     start_world_space: world_pos.as_dvec3(),
@@ -201,17 +198,110 @@ fn calculate_rotation_to_preserve_point(
     camera_transform: &GlobalTransform,
     sphere_radius: f32,
 ) -> Option<DQuat> {
-    let current_world_pos = cursor_to_world_on_sphere(
-        current_cursor_pos,
-        camera,
-        camera_transform,
-        sphere_radius,
-    )?;
+    let current_world_pos =
+        cursor_to_world_on_sphere(current_cursor_pos, camera, camera_transform, sphere_radius)?;
 
     Some(DQuat::from_rotation_arc(
         current_world_pos.as_dvec3().normalize(),
         start_world_pos.normalize(),
     ))
+}
+
+/// Calculate latitude in degrees from a world-space position
+fn compute_latitude(position: DVec3) -> f64 {
+    let r = position.length();
+    if r < f64::EPSILON {
+        return 0.0;
+    }
+    (position.y / r).asin().to_degrees()
+}
+
+/// Remove roll component from a rotation quaternion using swing-twist decomposition.
+/// Decomposes the rotation into a swing (rotation perpendicular to radial axis) and
+/// twist (rotation around radial axis), then returns only the swing component.
+fn remove_roll_from_rotation(rotation: DQuat, camera_position: DVec3) -> DQuat {
+    let radial = camera_position.normalize();
+
+    // Swing-twist decomposition around the radial axis
+    // Given quaternion q = [x, y, z, w] and axis v, we decompose q = swing * twist
+    // where twist is rotation around v and swing is perpendicular to v
+
+    // Project quaternion's vector part onto the radial axis
+    let q_vec = DVec3::new(rotation.x, rotation.y, rotation.z);
+    let q_w = rotation.w;
+
+    let dot = q_vec.dot(radial);
+
+    // Twist quaternion (rotation around radial axis)
+    let twist = DQuat::from_xyzw(radial.x * dot, radial.y * dot, radial.z * dot, q_w);
+
+    let twist_len_sq =
+        twist.x * twist.x + twist.y * twist.y + twist.z * twist.z + twist.w * twist.w;
+
+    if twist_len_sq < 1e-10 {
+        // Degenerate case
+        return rotation;
+    }
+
+    let twist = twist.normalize();
+
+    // Swing quaternion (rotation perpendicular to radial axis)
+    // swing = q * twist^-1
+    let swing = rotation * twist.conjugate();
+
+    swing
+}
+
+/// Calculate how much to constrain roll based on latitude.
+/// Returns 1.0 at equator (full constraint), 0.0 at poles (no constraint)
+fn compute_roll_constraint_factor(
+    latitude_deg: f64,
+    low_threshold: f64,
+    high_threshold: f64,
+) -> f64 {
+    let abs_lat = latitude_deg.abs();
+
+    if abs_lat <= low_threshold {
+        1.0 // Full constraint
+    } else if abs_lat >= high_threshold {
+        0.0 // No constraint
+    } else {
+        // Smooth transition using smoothstep
+        let t = (abs_lat - low_threshold) / (high_threshold - low_threshold);
+        let smooth_t = 3.0 * t * t - 2.0 * t * t * t;
+        1.0 - smooth_t
+    }
+}
+
+/// Apply latitude-based roll constraint to a rotation quaternion
+fn apply_roll_constraint(
+    rotation: DQuat,
+    camera_position: DVec3,
+    config: &OrbitCameraConfig,
+) -> DQuat {
+    // Compute current latitude
+    let latitude = compute_latitude(camera_position);
+
+    // Compute blend factor (1.0 = full constraint, 0.0 = no constraint)
+    let constraint_factor = compute_roll_constraint_factor(
+        latitude,
+        config.roll_constraint_low_lat,
+        config.roll_constraint_high_lat,
+    );
+
+    if constraint_factor < 1e-6 {
+        // Near poles, no constraint needed
+        return rotation;
+    }
+
+    if constraint_factor > 1.0 - 1e-6 {
+        // Near equator, full constraint
+        return remove_roll_from_rotation(rotation, camera_position);
+    }
+
+    // Blend between constrained and unconstrained
+    let no_roll = remove_roll_from_rotation(rotation, camera_position);
+    DQuat::slerp(rotation, no_roll, constraint_factor)
 }
 
 fn update_position_target(
@@ -287,9 +377,14 @@ fn update_camera_rig_rotation(
     let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
 
     if state.pan.is_some() {
-        // TODO: hold the yaw angle constant unless the camera is near the poles
         let delta_rotation = DQuat::slerp(DQuat::IDENTITY, state.pan_rotation_target, smoothing);
-        state.camera_rig_rotation = delta_rotation * state.camera_rig_rotation;
+        // Apply roll constraint to keep north up, except near poles
+        let constrained_rotation = apply_roll_constraint(
+            delta_rotation,
+            state.camera_rig_position_world_space,
+            config,
+        );
+        state.camera_rig_rotation = constrained_rotation * state.camera_rig_rotation;
     }
 
     // Apply zoom rotation immediately (without smoothing) to maintain the constraint
