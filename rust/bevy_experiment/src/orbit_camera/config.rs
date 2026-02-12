@@ -69,6 +69,12 @@ pub struct OrbitCameraConfig {
     // /// For devices with smooth scrolling, like touchpads
     // pub scroll_pixel_sensitivity: f32,
     pub earth_radius: f32,
+
+    /// Latitude threshold below which roll is fully constrained (degrees)
+    pub roll_constraint_low_lat: f64,
+
+    /// Latitude threshold above which roll is fully free (degrees)
+    pub roll_constraint_high_lat: f64,
 }
 
 impl Default for OrbitCameraConfig {
@@ -98,6 +104,9 @@ impl Default for OrbitCameraConfig {
             // scroll_line_sensitivity: 16.0, // 1 "line" == 16 "pixels of motion"
             // scroll_pixel_sensitivity: 1.0,
             earth_radius: 1.0,
+
+            roll_constraint_low_lat: 70.0,
+            roll_constraint_high_lat: 80.0,
         }
     }
 }
