@@ -379,12 +379,23 @@ fn update_camera_rig_rotation(
     if state.pan.is_some() {
         let delta_rotation = DQuat::slerp(DQuat::IDENTITY, state.pan_rotation_target, smoothing);
         // Apply roll constraint to keep north up, except near poles
-        let constrained_rotation = apply_roll_constraint(
-            delta_rotation,
-            state.camera_rig_position_world_space,
-            config,
+        // let constrained_rotation = apply_roll_constraint(
+        //     delta_rotation,
+        //     state.camera_rig_position_world_space,
+        //     config,
+        // );
+        let old_camera_rig_rotation_euler = state.camera_rig_rotation.to_euler(EulerRot::ZXY);
+        let new_camera_rig_rotation_euler =
+            (delta_rotation * state.camera_rig_rotation).to_euler(EulerRot::ZXY);
+
+        state.camera_rig_rotation = DQuat::from_euler(
+            EulerRot::ZXY,
+            old_camera_rig_rotation_euler.0 as f64, // Preserve existing roll angle for now
+            new_camera_rig_rotation_euler.1 as f64,
+            new_camera_rig_rotation_euler.2 as f64,
         );
-        state.camera_rig_rotation = constrained_rotation * state.camera_rig_rotation;
+
+        // state.camera_rig_rotation = delta_rotation * state.camera_rig_rotation;
     }
 
     // Apply zoom rotation immediately (without smoothing) to maintain the constraint
@@ -398,7 +409,24 @@ fn update_camera_rig_rotation(
         state.camera_rig_rotation * DVec3::new(0.0, 0.0, config.earth_radius as f64);
 
     // Update camera rig transform from f64 state
+    // let old_camera_euler = camera_rig_transform.rotation.to_euler(EulerRot::ZXY);
+    // let old_roll_angle = old_camera_euler.0;
+    // let new_camera_euler = state.camera_rig_rotation.to_euler(EulerRot::ZXY);
+    // let constrained_rotation = apply_roll_constraint(
+    //     delta_rotation,
+    //     state.camera_rig_position_world_space,
+    //     config,
+    // );
+    // state.camera_rig_rotation = DQuat::from_euler(
+    //     EulerRot::ZXY,
+    //     old_camera_euler.0 as f64, // Preserve existing roll angle for now
+    //     new_camera_euler.1 as f64,
+    //     new_camera_euler.2 as f64,
+    // );
+
     camera_rig_transform.rotation = state.camera_rig_rotation.as_quat();
+    // camera_rig_transform.rotation = constrained_camera_rotation;
+
     camera_rig_transform.translation = state.camera_rig_position_world_space.as_vec3();
 }
 
