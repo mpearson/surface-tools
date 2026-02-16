@@ -199,21 +199,54 @@ fn calculate_rotation_to_preserve_point(
     sphere_radius: f32,
 ) -> Option<DQuat> {
     let current_world_pos =
-        cursor_to_world_on_sphere(current_cursor_pos, camera, camera_transform, sphere_radius)?;
+        cursor_to_world_on_sphere(current_cursor_pos, camera, camera_transform, sphere_radius)?
+            .as_dvec3();
 
-    Some(DQuat::from_rotation_arc(
-        current_world_pos.as_dvec3().normalize(),
-        start_world_pos.normalize(),
-    ))
+    // return Some(DQuat::from_rotation_arc(
+    //     current_world_pos.normalize(),
+    //     start_world_pos.normalize(),
+    // ));
+    // // Normalize both positions
+    // let current_normalized = current_world_pos.as_dvec3().normalize();
+    // let start_normalized = start_world_pos.normalize();
+
+    // // Compute spherical coordinates for both positions
+    let delta_longitude = compute_longitude(current_world_pos) - compute_longitude(start_world_pos);
+    let delta_latitude = compute_latitude(current_world_pos) - compute_latitude(start_world_pos);
+
+    // let theta_start = compute_longitude(start_world_pos);
+    // let phi_start = compute_latitude(start_world_pos);
+
+    // // Compute angle deltas
+    // let delta_theta = theta_start - delta_longitude;
+    // let delta_phi = phi_start - delta_latitude;
+
+    // // Build quaternion from Euler angles (ZXY order: yaw, pitch, roll=0)
+    let rotation = DQuat::from_euler(
+        EulerRot::ZXY,
+        0.0, // No roll/twist
+        delta_latitude,
+        delta_longitude,
+        // delta_theta.to_radians(),
+        // delta_phi.to_radians(),
+    );
+    Some(rotation)
 }
 
-/// Calculate latitude in degrees from a world-space position
+/// Calculate latitude from a world-space position
 fn compute_latitude(position: DVec3) -> f64 {
-    let r = position.length();
-    if r < f64::EPSILON {
-        return 0.0;
-    }
-    (position.y / r).asin().to_degrees()
+    // let r = position.length();
+    // if r < f64::EPSILON {
+    //     return 0.0;
+    // }
+    // (position.y / r).asin()
+
+    position.y.atan2(position.xy().length())
+}
+
+/// Calculate longitude/azimuthal angle from a world-space position
+fn compute_longitude(position: DVec3) -> f64 {
+    position.z.atan2(position.x)
 }
 
 /// Remove roll component from a rotation quaternion using swing-twist decomposition.
@@ -378,24 +411,35 @@ fn update_camera_rig_rotation(
 
     if state.pan.is_some() {
         let delta_rotation = DQuat::slerp(DQuat::IDENTITY, state.pan_rotation_target, smoothing);
+
+        // let delta_rotation = DQuat::from_euler(
+        //     EulerRot::ZXY,
+        //     0.0,
+        //     0.0,
+        //     0.1 * smoothing,
+        //     // delta_theta.to_radians(),
+        //     // delta_phi.to_radians(),
+        //     // 0.0, // No roll/twist
+        // );
+
         // Apply roll constraint to keep north up, except near poles
         // let constrained_rotation = apply_roll_constraint(
         //     delta_rotation,
         //     state.camera_rig_position_world_space,
         //     config,
         // );
-        let old_camera_rig_rotation_euler = state.camera_rig_rotation.to_euler(EulerRot::ZXY);
-        let new_camera_rig_rotation_euler =
-            (delta_rotation * state.camera_rig_rotation).to_euler(EulerRot::ZXY);
+        // let old_camera_rig_rotation_euler = state.camera_rig_rotation.to_euler(EulerRot::ZXY);
+        // let new_camera_rig_rotation_euler =
+        //     (delta_rotation * state.camera_rig_rotation).to_euler(EulerRot::ZXY);
 
-        state.camera_rig_rotation = DQuat::from_euler(
-            EulerRot::ZXY,
-            old_camera_rig_rotation_euler.0 as f64, // Preserve existing roll angle for now
-            new_camera_rig_rotation_euler.1 as f64,
-            new_camera_rig_rotation_euler.2 as f64,
-        );
+        // state.camera_rig_rotation = DQuat::from_euler(
+        //     EulerRot::ZXY,
+        //     old_camera_rig_rotation_euler.0 as f64, // Preserve existing roll angle for now
+        //     new_camera_rig_rotation_euler.1 as f64,
+        //     new_camera_rig_rotation_euler.2 as f64,
+        // );
 
-        // state.camera_rig_rotation = delta_rotation * state.camera_rig_rotation;
+        state.camera_rig_rotation = delta_rotation * state.camera_rig_rotation;
     }
 
     // Apply zoom rotation immediately (without smoothing) to maintain the constraint
