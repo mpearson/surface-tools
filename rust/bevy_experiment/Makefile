@@ -17,7 +17,7 @@ all: run
 # Define the build target
 build:
 	@echo "Building the project..."
-	cargo build --release --target wasm32-unknown-unknown
+	cargo build --target wasm32-unknown-unknown
 	wasm-bindgen $(WASM_DIR)/bevy_experiment.wasm --out-dir $(BINDGEN_DIR) --target web
 	cp index.html $(BINDGEN_DIR)
 

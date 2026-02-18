@@ -202,10 +202,10 @@ fn calculate_rotation_to_preserve_point(
         cursor_to_world_on_sphere(current_cursor_pos, camera, camera_transform, sphere_radius)?
             .as_dvec3();
 
-    // return Some(DQuat::from_rotation_arc(
-    //     current_world_pos.normalize(),
-    //     start_world_pos.normalize(),
-    // ));
+    return Some(DQuat::from_rotation_arc(
+        current_world_pos.normalize(),
+        start_world_pos.normalize(),
+    ));
     // // Normalize both positions
     // let current_normalized = current_world_pos.as_dvec3().normalize();
     // let start_normalized = start_world_pos.normalize();
@@ -467,11 +467,18 @@ fn update_camera_rig_rotation(
     //     new_camera_euler.1 as f64,
     //     new_camera_euler.2 as f64,
     // );
-
-    camera_rig_transform.rotation = state.camera_rig_rotation.as_quat();
-    // camera_rig_transform.rotation = constrained_camera_rotation;
-
     camera_rig_transform.translation = state.camera_rig_position_world_space.as_vec3();
+
+    // camera_rig_transform.rotation = state.camera_rig_rotation.as_quat();
+    camera_rig_transform.look_at(Vec3::ZERO, Vec3::Y);
+    // TODO: blend this quaternion with the one we get by doing slerp()
+    // Somehow we will need to eventually "transfer" the yaw rotation into the inner camera rotation
+    // with the understanding that this rotation may not change in a continuous fashion.
+    // Ideally, the camera rig's rotation will always have zero roll angle when possible, (i.e. not
+    // near the poles) and the camera's local yaw angle will always match its global yaw angle,
+    // we'll be able to interpret it as a compass bearing.
+
+    // camera_rig_transform.rotation = constrained_camera_rotation;
 }
 
 /// Position the camera in the camera rig's local space using orbit euler angles and radius.
