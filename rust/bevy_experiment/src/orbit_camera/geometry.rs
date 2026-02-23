@@ -8,7 +8,7 @@ use bevy::{
 /// Returns the distance along the ray to the first intersection point, if any.
 pub(super) fn ray_sphere_intersection_f64(
     ray_origin: DVec3,
-    ray_direction: DVec3,  // Must be normalized
+    ray_direction: DVec3, // Must be normalized
     sphere_center: DVec3,
     sphere_radius: f64,
     max_distance: f64,
@@ -18,9 +18,7 @@ pub(super) fn ray_sphere_intersection_f64(
     let closest_point = offset - projected * ray_direction;
     let distance_squared = sphere_radius * sphere_radius - closest_point.length_squared();
 
-    if distance_squared < 0.0
-        || projected.copysign(-projected).powi(2) < -distance_squared
-    {
+    if distance_squared < 0.0 || projected.copysign(-projected).powi(2) < -distance_squared {
         None
     } else {
         let toi = -projected - distance_squared.sqrt();
@@ -29,6 +27,39 @@ pub(super) fn ray_sphere_intersection_f64(
         } else {
             Some(toi.max(0.0))
         }
+    }
+}
+
+/// Returns the nearest point on the sphere's surface to the given ray.
+/// If the ray intersects the sphere, this is the entry (first hit) point.
+/// If the ray misses, this is the sphere-surface point closest to the ray.
+/// `ray_direction` must be normalized.
+pub(super) fn nearest_point_on_sphere_f64(
+    ray_origin: DVec3,
+    ray_direction: DVec3,
+    sphere_center: DVec3,
+    sphere_radius: f64,
+) -> DVec3 {
+    // TODO: optimize, I think there is some duplicate math here
+    if let Some(t) = ray_sphere_intersection_f64(
+        ray_origin,
+        ray_direction,
+        sphere_center,
+        sphere_radius,
+        f64::MAX,
+    ) {
+        return ray_origin + ray_direction * t;
+    }
+
+    // Ray misses: project closest ray-point onto the sphere surface.
+    let t = (sphere_center - ray_origin).dot(ray_direction).max(0.0);
+    let closest_on_ray = ray_origin + ray_direction * t;
+    let to_surface = closest_on_ray - sphere_center;
+    let len = to_surface.length();
+    if len < 1e-12 {
+        sphere_center + DVec3::Y * sphere_radius
+    } else {
+        sphere_center + to_surface * (sphere_radius / len)
     }
 }
 
