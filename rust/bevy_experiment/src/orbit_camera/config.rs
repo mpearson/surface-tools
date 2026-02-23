@@ -68,7 +68,7 @@ pub struct OrbitCameraConfig {
     // pub scroll_line_sensitivity: f32,
     // /// For devices with smooth scrolling, like touchpads
     // pub scroll_pixel_sensitivity: f32,
-    pub earth_radius: f32,
+    pub earth_radius: f64,
 
     /// Latitude threshold below which roll is fully constrained (degrees)
     pub roll_constraint_low_lat: f64,

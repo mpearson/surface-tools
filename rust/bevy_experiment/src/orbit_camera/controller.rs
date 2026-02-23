@@ -3,7 +3,6 @@ use bevy::{
     ecs::prelude::*,
     gizmos::prelude::Gizmos,
     math::{
-        bounding::{BoundingSphere, RayCast3d},
         prelude::*,
         DQuat, DVec3,
     },
@@ -20,6 +19,7 @@ use crate::orbit_camera::{
 };
 
 use super::config::OrbitCameraConfig;
+use super::geometry::{compute_latitude, compute_longitude, cursor_to_world_on_sphere_f64};
 
 fn distance_to_zoom_level(distance: f64) -> f64 {
     -distance.ln()
@@ -55,11 +55,11 @@ fn update_zoom(
         if let Some(cursor_pos) = zoom_start_cursor_position {
             // Starting a new zoom operation - capture the world position under the cursor
             if let Some(world_pos) =
-                cursor_to_world_on_sphere(cursor_pos, camera, camera_transform, config.earth_radius)
+                cursor_to_world_on_sphere_f64(cursor_pos, camera, camera_transform, config.earth_radius)
             {
                 state.zoom = Some(ZoomState {
                     start_cursor_screen_space: cursor_pos,
-                    start_world_space: world_pos.as_dvec3(),
+                    start_world_space: world_pos,
                     start_radius: state.radius,
                 });
             } else {
@@ -107,12 +107,12 @@ fn update_zoom(
             state.zoom_rotation_target = rotation;
 
             // Debug gizmos
-            if let Some(current_world_pos) = cursor_to_world_on_sphere(
+            if let Some(current_world_pos) = cursor_to_world_on_sphere_f64(
                 zoom_state.start_cursor_screen_space,
                 camera,
                 camera_transform,
                 config.earth_radius,
-            ) {
+            ).map(|v| v.as_vec3()) {
                 gizmos.sphere(
                     Isometry3d::from_translation(current_world_pos),
                     0.05,
@@ -170,24 +170,6 @@ fn update_orbit(
     state.current_euler_angles.z = 0.0;
 }
 
-fn cursor_to_world_on_sphere(
-    cursor: Vec2,
-    camera: &Camera,
-    camera_transform: &GlobalTransform,
-    sphere_radius: f32,
-) -> Option<Vec3> {
-    let viewport_pos = Vec2::new(cursor.x, cursor.y);
-    let ray = camera
-        .viewport_to_world(camera_transform, viewport_pos)
-        .ok()?;
-    let ray_cast = RayCast3d::from_ray(ray, f32::MAX);
-    let sphere = BoundingSphere::new(Vec3::ZERO, sphere_radius);
-
-    let distance = ray_cast.sphere_intersection_at(&sphere)?;
-
-    let intersection = ray.get_point(distance);
-    Some(intersection)
-}
 
 /// Calculates the rotation needed to keep a world point under the cursor constant.
 /// Used by both pan and zoom to preserve cursor position during camera transformations.
@@ -196,11 +178,10 @@ fn calculate_rotation_to_preserve_point(
     current_cursor_pos: Vec2,
     camera: &Camera,
     camera_transform: &GlobalTransform,
-    sphere_radius: f32,
+    sphere_radius: f64,
 ) -> Option<DQuat> {
     let current_world_pos =
-        cursor_to_world_on_sphere(current_cursor_pos, camera, camera_transform, sphere_radius)?
-            .as_dvec3();
+        cursor_to_world_on_sphere_f64(current_cursor_pos, camera, camera_transform, sphere_radius)?;
 
     return Some(DQuat::from_rotation_arc(
         current_world_pos.normalize(),
@@ -233,21 +214,6 @@ fn calculate_rotation_to_preserve_point(
     Some(rotation)
 }
 
-/// Calculate latitude from a world-space position
-fn compute_latitude(position: DVec3) -> f64 {
-    // let r = position.length();
-    // if r < f64::EPSILON {
-    //     return 0.0;
-    // }
-    // (position.y / r).asin()
-
-    position.y.atan2(position.xy().length())
-}
-
-/// Calculate longitude/azimuthal angle from a world-space position
-fn compute_longitude(position: DVec3) -> f64 {
-    position.z.atan2(position.x)
-}
 
 /// Remove roll component from a rotation quaternion using swing-twist decomposition.
 /// Decomposes the rotation into a swing (rotation perpendicular to radial axis) and
@@ -370,17 +336,17 @@ fn update_position_target(
                 pan_state.start_screen_space + pan_state.offset_screen_space,
                 camera,
                 camera_transform,
-                pan_state.start_radius as f32,
+                pan_state.start_radius,
             ) {
                 state.pan_rotation_target = rotation;
 
                 // Debug gizmo for current mouse position on sphere
-                if let Some(mouse_pos_world_space) = cursor_to_world_on_sphere(
+                if let Some(mouse_pos_world_space) = cursor_to_world_on_sphere_f64(
                     pan_state.start_screen_space + pan_state.offset_screen_space,
                     camera,
                     camera_transform,
-                    pan_state.start_radius as f32,
-                ) {
+                    pan_state.start_radius,
+                ).map(|v| v.as_vec3()) {
                     gizmos.sphere(
                         Isometry3d::from_translation(mouse_pos_world_space),
                         0.05,
@@ -525,12 +491,12 @@ pub fn step(
             // Calculate cursor world position if we have a pan start position
             let cursor_world_space =
                 if let Some(pan_start_screen_space) = input.pan_start_screen_space {
-                    cursor_to_world_on_sphere(
+                    cursor_to_world_on_sphere_f64(
                         pan_start_screen_space,
                         camera,
                         camera_global_transform,
                         config.earth_radius,
-                    )
+                    ).map(|v| v.as_vec3())
                 } else {
                     None
                 };
