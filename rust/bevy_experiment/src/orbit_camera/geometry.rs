@@ -6,7 +6,7 @@ use bevy::{
 
 /// Ray-sphere intersection test with f64 precision.
 /// Returns the distance along the ray to the first intersection point, if any.
-pub(super) fn ray_sphere_intersection_f64(
+pub fn ray_sphere_intersection_f64(
     ray_origin: DVec3,
     ray_direction: DVec3, // Must be normalized
     sphere_center: DVec3,
@@ -34,7 +34,7 @@ pub(super) fn ray_sphere_intersection_f64(
 /// If the ray intersects the sphere, this is the entry (first hit) point.
 /// If the ray misses, this is the sphere-surface point closest to the ray.
 /// `ray_direction` must be normalized.
-pub(super) fn nearest_point_on_sphere_f64(
+pub fn nearest_point_on_sphere_f64(
     ray_origin: DVec3,
     ray_direction: DVec3,
     sphere_center: DVec3,
@@ -64,7 +64,7 @@ pub(super) fn nearest_point_on_sphere_f64(
 }
 
 /// Convert cursor position to world coordinates on a sphere using f64 precision.
-pub(super) fn cursor_to_world_on_sphere_f64(
+pub fn cursor_to_world_on_sphere_f64(
     cursor: Vec2,
     camera: &Camera,
     camera_transform: &GlobalTransform,
@@ -92,11 +92,11 @@ pub(super) fn cursor_to_world_on_sphere_f64(
 }
 
 /// Calculate latitude from a world-space position
-pub(super) fn compute_latitude(position: DVec3) -> f64 {
+pub fn compute_latitude(position: DVec3) -> f64 {
     position.y.atan2(position.xy().length())
 }
 
 /// Calculate longitude/azimuthal angle from a world-space position
-pub(super) fn compute_longitude(position: DVec3) -> f64 {
+pub fn compute_longitude(position: DVec3) -> f64 {
     position.z.atan2(position.x)
 }
