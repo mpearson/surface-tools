@@ -76,3 +76,9 @@ features = [
 # StatesPlugin - with feature bevy_state
 # DevToolsPlugin - with feature bevy_dev_tools
 # CiTestingPlugin - with feature bevy_ci_testing
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = "symbols"

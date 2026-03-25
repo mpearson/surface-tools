@@ -21,6 +21,16 @@ build:
 	wasm-bindgen $(WASM_DIR)/bevy_experiment.wasm --out-dir $(BINDGEN_DIR) --target web
 	cp index.html $(BINDGEN_DIR)
 
+# Define the optimized release build target
+build-release:
+	@echo "Building optimized release..."
+	cargo build --release --target wasm32-unknown-unknown
+	wasm-bindgen $(WASM_DIR)/bevy_experiment.wasm --out-dir $(BINDGEN_DIR) --target web
+	wasm-opt -Oz $(BINDGEN_DIR)/bevy_experiment_bg.wasm -o $(BINDGEN_DIR)/bevy_experiment_bg.wasm
+	cp index.html $(BINDGEN_DIR)
+	@echo "Final WASM size:"
+	@ls -lh $(BINDGEN_DIR)/bevy_experiment_bg.wasm
+
 # Define the run target
 run:
 	cargo run --target wasm32-unknown-unknown
