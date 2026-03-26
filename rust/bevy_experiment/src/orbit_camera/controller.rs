@@ -2,10 +2,7 @@ use bevy::{
     color::Color,
     ecs::prelude::*,
     gizmos::prelude::Gizmos,
-    math::{
-        prelude::*,
-        DQuat, DVec3,
-    },
+    math::{prelude::*, DQuat, DVec3},
     prelude::info,
     prelude::Camera,
     time::Time,
@@ -54,9 +51,12 @@ fn update_zoom(
     if zoom_delta != 0.0 {
         if let Some(cursor_pos) = zoom_start_cursor_position {
             // Starting a new zoom operation - capture the world position under the cursor
-            if let Some(world_pos) =
-                cursor_to_world_on_sphere_f64(cursor_pos, camera, camera_transform, config.earth_radius)
-            {
+            if let Some(world_pos) = cursor_to_world_on_sphere_f64(
+                cursor_pos,
+                camera,
+                camera_transform,
+                config.earth_radius,
+            ) {
                 state.zoom = Some(ZoomState {
                     start_cursor_screen_space: cursor_pos,
                     start_world_space: world_pos,
@@ -112,7 +112,9 @@ fn update_zoom(
                 camera,
                 camera_transform,
                 config.earth_radius,
-            ).map(|v| v.as_vec3()) {
+            )
+            .map(|v| v.as_vec3())
+            {
                 gizmos.sphere(
                     Isometry3d::from_translation(current_world_pos),
                     0.05,
@@ -170,7 +172,6 @@ fn update_orbit(
     state.current_euler_angles.z = 0.0;
 }
 
-
 /// Calculates the rotation needed to keep a world point under the cursor constant.
 /// Used by both pan and zoom to preserve cursor position during camera transformations.
 fn calculate_rotation_to_preserve_point(
@@ -213,7 +214,6 @@ fn calculate_rotation_to_preserve_point(
     );
     Some(rotation)
 }
-
 
 /// Remove roll component from a rotation quaternion using swing-twist decomposition.
 /// Decomposes the rotation into a swing (rotation perpendicular to radial axis) and
@@ -303,6 +303,26 @@ fn apply_roll_constraint(
     DQuat::slerp(rotation, no_roll, constraint_factor)
 }
 
+/// TODO: new plan
+///
+/// 0. compute the yaw angle of the camera in the NED frame
+/// 1. read up on swing-twist decomposition and figure out if it has better precision than
+///    DQuat::from_rotation_arc(). If it does then try it, otherwise keep using from_rotation_arc().
+///    The point is that we need a rotation which moves the rig along a great circle towards the
+///    target point.
+/// 2. apply this rotation (scaled by timestep of course) to the position and the orbit rotation
+/// 3. somehow modify the outer rotation such that it's north-up, while preserving the camera's new
+///    yaw angle in the NED frame.
+/// 4. interpolate between the camera's new yaw angle angle and the previous one based on latitude.
+///
+/// (3) is the hard part. After rotating the camera rig (aka orbit frame), we compute the frame's
+/// roll angle I guess? and then apply the opposite of that rotation to the orbit frame, and THEN
+/// apply that rotation, transformed into the inner frame, to the camera itself. The camera should
+/// end up with the same exact global rotation, but the orbit frame will have zero roll
+/// (i.e. north up).
+///
+///
+///
 fn update_position_target(
     // config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
@@ -346,7 +366,9 @@ fn update_position_target(
                     camera,
                     camera_transform,
                     pan_state.start_radius,
-                ).map(|v| v.as_vec3()) {
+                )
+                .map(|v| v.as_vec3())
+                {
                     gizmos.sphere(
                         Isometry3d::from_translation(mouse_pos_world_space),
                         0.05,
@@ -496,7 +518,8 @@ pub fn step(
                         camera,
                         camera_global_transform,
                         config.earth_radius,
-                    ).map(|v| v.as_vec3())
+                    )
+                    .map(|v| v.as_vec3())
                 } else {
                     None
                 };
