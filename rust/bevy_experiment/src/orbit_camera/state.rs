@@ -20,13 +20,13 @@ pub struct OrbitCameraState {
 
     /// f64-precision rotation of the camera pivot (source of truth for pan).
     /// The pivot entity's Transform.rotation is derived from this each frame.
-    pub camera_rig_rotation: DQuat,
+    pub ned_frame_rotation: DQuat,
 
     /// Point on the earth surface the camera is centered on.
     /// Derived each frame from camera_center_rotation.
     pub camera_rig_position_world_space: DVec3,
 
-    pub pan_rotation_target: DQuat,
+    pub ned_frame_rotation_target: DQuat,
     pub pan: Option<PanState>,
 
     pub zoom_rotation_target: DQuat,
@@ -43,9 +43,9 @@ impl Default for OrbitCameraState {
     fn default() -> Self {
         Self {
             radius: 20.0,
-            camera_rig_rotation: DQuat::IDENTITY,
+            ned_frame_rotation: DQuat::IDENTITY,
             camera_rig_position_world_space: DVec3::new(0.0, 0.0, 1.0),
-            pan_rotation_target: DQuat::IDENTITY,
+            ned_frame_rotation_target: DQuat::IDENTITY,
             pan: None,
             zoom_rotation_target: DQuat::IDENTITY,
             zoom: None,

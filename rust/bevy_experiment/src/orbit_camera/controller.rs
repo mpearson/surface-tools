@@ -358,7 +358,7 @@ fn update_position_target(
                 camera_transform,
                 pan_state.start_radius,
             ) {
-                state.pan_rotation_target = rotation;
+                state.ned_frame_rotation_target = rotation;
 
                 // Debug gizmo for current mouse position on sphere
                 if let Some(mouse_pos_world_space) = cursor_to_world_on_sphere_f64(
@@ -389,16 +389,17 @@ fn update_position_target(
     }
 }
 
-fn update_camera_rig_rotation(
+fn update_ned_frame_origin(
     config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
-    camera_rig_transform: &mut Transform,
+    ned_frame_transform: &mut Transform,
     dt: f32,
 ) {
     let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
 
     if state.pan.is_some() {
-        let delta_rotation = DQuat::slerp(DQuat::IDENTITY, state.pan_rotation_target, smoothing);
+        let delta_rotation =
+            DQuat::slerp(DQuat::IDENTITY, state.ned_frame_rotation_target, smoothing);
 
         // let delta_rotation = DQuat::from_euler(
         //     EulerRot::ZXY,
@@ -427,18 +428,18 @@ fn update_camera_rig_rotation(
         //     new_camera_rig_rotation_euler.2 as f64,
         // );
 
-        state.camera_rig_rotation = delta_rotation * state.camera_rig_rotation;
+        state.ned_frame_rotation = delta_rotation * state.ned_frame_rotation;
     }
 
     // Apply zoom rotation immediately (without smoothing) to maintain the constraint
     // that the world point stays under the cursor throughout the zoom
     if state.zoom.is_some() {
-        state.camera_rig_rotation = state.zoom_rotation_target * state.camera_rig_rotation;
+        state.ned_frame_rotation = state.zoom_rotation_target * state.ned_frame_rotation;
     }
 
     // Derive world-space center point from rotation
     state.camera_rig_position_world_space =
-        state.camera_rig_rotation * DVec3::new(0.0, 0.0, config.earth_radius as f64);
+        state.ned_frame_rotation * DVec3::new(0.0, 0.0, config.earth_radius as f64);
 
     // Update camera rig transform from f64 state
     // let old_camera_euler = camera_rig_transform.rotation.to_euler(EulerRot::ZXY);
@@ -455,10 +456,10 @@ fn update_camera_rig_rotation(
     //     new_camera_euler.1 as f64,
     //     new_camera_euler.2 as f64,
     // );
-    camera_rig_transform.translation = state.camera_rig_position_world_space.as_vec3();
+    ned_frame_transform.translation = state.camera_rig_position_world_space.as_vec3();
 
     // camera_rig_transform.rotation = state.camera_rig_rotation.as_quat();
-    camera_rig_transform.look_at(Vec3::ZERO, Vec3::Y);
+    ned_frame_transform.look_at(Vec3::ZERO, Vec3::Y);
     // TODO: blend this quaternion with the one we get by doing slerp()
     // Somehow we will need to eventually "transfer" the yaw rotation into the inner camera rotation
     // with the understanding that this rotation may not change in a continuous fashion.
@@ -547,8 +548,8 @@ pub fn step(
 
             // TODO: figure out if there's a cleaner way to get to these transforms, ew
             {
-                let mut camera_rig_transform = transforms.get_mut(camera_rig).unwrap();
-                update_camera_rig_rotation(config, &mut state, &mut camera_rig_transform, frame_dt);
+                let mut ned_frame_transform = transforms.get_mut(camera_rig).unwrap();
+                update_ned_frame_origin(config, &mut state, &mut ned_frame_transform, frame_dt);
             }
 
             {
