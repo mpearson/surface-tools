@@ -39,6 +39,13 @@ run:
 # 	@echo "Running the project..."
 # 	python -m http.server --directory $(BINDGEN_DIR)
 
+# Native Linux build targets
+build-native:
+	cargo build --profile release --target x86_64-unknown-linux-gnu
+
+run-native:
+	cargo run --profile release --target x86_64-unknown-linux-gnu
+
 # Define the clean target
 clean:
 	@echo "Cleaning the project..."
