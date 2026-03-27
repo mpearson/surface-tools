@@ -61,6 +61,14 @@ pub fn step(
     }
     let cursor_position = last_cursor_position.or(window.cursor_position());
 
+    // TODO: new plan. IF we have a CursorMoved event, we should use that. If we don't, but we do
+    // have a MouseMotion event (i.e. the mouse is outside the window) then we should accumulate the
+    // delta from those as we have been doing. But inside the window, we should be using the actual
+    // mouse position (and maybe just put that in the output event too). That way the camera
+    // controller can decide which one to use. The velocity differences in the raw MouseMotion event
+    // will hopefully be less apparent when the mouse is outside of the window and therefore not
+    // visibly drifting from the original "grab point" on the earth.
+
     // There may be multiple mouse move events per frame, so we need to accumulate the deltas.
     let mut cursor_delta = Vec2::ZERO;
     for event in mouse_motion_events.read() {
