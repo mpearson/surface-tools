@@ -185,125 +185,96 @@ fn calculate_rotation_to_preserve_point(
     let current_world_pos =
         cursor_to_world_on_sphere_f64(current_cursor_pos, camera, camera_transform, sphere_radius)?;
 
-    return Some(DQuat::from_rotation_arc(
-        current_world_pos.normalize(),
-        start_world_pos.normalize(),
-    ));
     return Some(great_circle_rotation(current_world_pos, start_world_pos));
-    // // Normalize both positions
-    // let current_normalized = current_world_pos.as_dvec3().normalize();
-    // let start_normalized = start_world_pos.normalize();
-
-    // // Compute spherical coordinates for both positions
-    let delta_longitude = compute_longitude(current_world_pos) - compute_longitude(start_world_pos);
-    let delta_latitude = compute_latitude(current_world_pos) - compute_latitude(start_world_pos);
-
-    // let theta_start = compute_longitude(start_world_pos);
-    // let phi_start = compute_latitude(start_world_pos);
-
-    // // Compute angle deltas
-    // let delta_theta = theta_start - delta_longitude;
-    // let delta_phi = phi_start - delta_latitude;
-
-    // // Build quaternion from Euler angles (ZXY order: yaw, pitch, roll=0)
-    let rotation = DQuat::from_euler(
-        EulerRot::ZXY,
-        0.0, // No roll/twist
-        delta_latitude,
-        delta_longitude,
-        // delta_theta.to_radians(),
-        // delta_phi.to_radians(),
-    );
-    Some(rotation)
 }
 
-/// Remove roll component from a rotation quaternion using swing-twist decomposition.
-/// Decomposes the rotation into a swing (rotation perpendicular to radial axis) and
-/// twist (rotation around radial axis), then returns only the swing component.
-fn remove_roll_from_rotation(rotation: DQuat, camera_position: DVec3) -> DQuat {
-    let radial = camera_position.normalize();
+// /// Remove roll component from a rotation quaternion using swing-twist decomposition.
+// /// Decomposes the rotation into a swing (rotation perpendicular to radial axis) and
+// /// twist (rotation around radial axis), then returns only the swing component.
+// fn remove_roll_from_rotation(rotation: DQuat, camera_position: DVec3) -> DQuat {
+//     let radial = camera_position.normalize();
 
-    // Swing-twist decomposition around the radial axis
-    // Given quaternion q = [x, y, z, w] and axis v, we decompose q = swing * twist
-    // where twist is rotation around v and swing is perpendicular to v
+//     // Swing-twist decomposition around the radial axis
+//     // Given quaternion q = [x, y, z, w] and axis v, we decompose q = swing * twist
+//     // where twist is rotation around v and swing is perpendicular to v
 
-    // Project quaternion's vector part onto the radial axis
-    let q_vec = DVec3::new(rotation.x, rotation.y, rotation.z);
-    let q_w = rotation.w;
+//     // Project quaternion's vector part onto the radial axis
+//     let q_vec = DVec3::new(rotation.x, rotation.y, rotation.z);
+//     let q_w = rotation.w;
 
-    let dot = q_vec.dot(radial);
+//     let dot = q_vec.dot(radial);
 
-    // Twist quaternion (rotation around radial axis)
-    let twist = DQuat::from_xyzw(radial.x * dot, radial.y * dot, radial.z * dot, q_w);
+//     // Twist quaternion (rotation around radial axis)
+//     let twist = DQuat::from_xyzw(radial.x * dot, radial.y * dot, radial.z * dot, q_w);
 
-    let twist_len_sq =
-        twist.x * twist.x + twist.y * twist.y + twist.z * twist.z + twist.w * twist.w;
+//     let twist_len_sq =
+//         twist.x * twist.x + twist.y * twist.y + twist.z * twist.z + twist.w * twist.w;
 
-    if twist_len_sq < 1e-10 {
-        // Degenerate case
-        return rotation;
-    }
+//     if twist_len_sq < 1e-10 {
+//         // Degenerate case
+//         return rotation;
+//     }
 
-    let twist = twist.normalize();
+//     let twist = twist.normalize();
 
-    // Swing quaternion (rotation perpendicular to radial axis)
-    // swing = q * twist^-1
-    let swing = rotation * twist.conjugate();
+//     // Swing quaternion (rotation perpendicular to radial axis)
+//     // swing = q * twist^-1
+//     let swing = rotation * twist.conjugate();
 
-    swing
-}
+//     swing
+// }
 
-/// Calculate how much to constrain roll based on latitude.
-/// Returns 1.0 at equator (full constraint), 0.0 at poles (no constraint)
-fn compute_roll_constraint_factor(
-    latitude_deg: f64,
-    low_threshold: f64,
-    high_threshold: f64,
-) -> f64 {
-    let abs_lat = latitude_deg.abs();
+// /// Calculate how much to constrain roll based on latitude.
+// /// Returns 1.0 at equator (full constraint), 0.0 at poles (no constraint)
+// fn compute_roll_constraint_factor(
+//     latitude_deg: f64,
+//     low_threshold: f64,
+//     high_threshold: f64,
+// ) -> f64 {
+//     let abs_lat = latitude_deg.abs();
 
-    if abs_lat <= low_threshold {
-        1.0 // Full constraint
-    } else if abs_lat >= high_threshold {
-        0.0 // No constraint
-    } else {
-        // Smooth transition using smoothstep
-        let t = (abs_lat - low_threshold) / (high_threshold - low_threshold);
-        let smooth_t = 3.0 * t * t - 2.0 * t * t * t;
-        1.0 - smooth_t
-    }
-}
+//     if abs_lat <= low_threshold {
+//         1.0 // Full constraint
+//     } else if abs_lat >= high_threshold {
+//         0.0 // No constraint
+//     } else {
+//         // Smooth transition using smoothstep
+//         let t = (abs_lat - low_threshold) / (high_threshold - low_threshold);
+//         let smooth_t = 3.0 * t * t - 2.0 * t * t * t;
+//         1.0 - smooth_t
+//     }
+// }
 
-/// Apply latitude-based roll constraint to a rotation quaternion
-fn apply_roll_constraint(
-    rotation: DQuat,
-    camera_position: DVec3,
-    config: &OrbitCameraConfig,
-) -> DQuat {
-    // Compute current latitude
-    let latitude = compute_latitude(camera_position);
+// /// Apply latitude-based roll constraint to a rotation quaternion
+// fn apply_roll_constraint(
+//     rotation: DQuat,
+//     camera_position: DVec3,
+//     config: &OrbitCameraConfig,
+// ) -> DQuat {
+//     // Compute current latitude
+//     let latitude = compute_latitude(camera_position);
 
-    // Compute blend factor (1.0 = full constraint, 0.0 = no constraint)
-    let constraint_factor = compute_roll_constraint_factor(
-        latitude,
-        config.roll_constraint_low_lat,
-        config.roll_constraint_high_lat,
-    );
+//     // Compute blend factor (1.0 = full constraint, 0.0 = no constraint)
+//     let constraint_factor = compute_roll_constraint_factor(
+//         latitude,
+//         config.roll_constraint_low_lat,
+//         config.roll_constraint_high_lat,
+//     );
 
-    if constraint_factor < 1e-6 {
-        // Near poles, no constraint needed
-        return rotation;
-    }
+//     if constraint_factor < 1e-6 {
+//         // Near poles, no constraint needed
+//         return rotation;
+//     }
 
-    if constraint_factor > 1.0 - 1e-6 {
-        // Near equator, full constraint
-        return remove_roll_from_rotation(rotation, camera_position);
-    }
+//     if constraint_factor > 1.0 - 1e-6 {
+//         // Near equator, full constraint
+//         return remove_roll_from_rotation(rotation, camera_position);
+//     }
 
-    // Blend between constrained and unconstrained
-    let no_roll = remove_roll_from_rotation(rotation, camera_position);
-    DQuat::slerp(rotation, no_roll, constraint_factor)
-}
+//     // Blend between constrained and unconstrained
+//     let no_roll = remove_roll_from_rotation(rotation, camera_position);
+//     DQuat::slerp(rotation, no_roll, constraint_factor)
+// }
 
 /// TODO: new plan
 ///
@@ -403,33 +374,6 @@ fn update_ned_frame_origin(
         let delta_rotation =
             DQuat::slerp(DQuat::IDENTITY, state.ned_frame_rotation_target, smoothing);
 
-        // let delta_rotation = DQuat::from_euler(
-        //     EulerRot::ZXY,
-        //     0.0,
-        //     0.0,
-        //     0.1 * smoothing,
-        //     // delta_theta.to_radians(),
-        //     // delta_phi.to_radians(),
-        //     // 0.0, // No roll/twist
-        // );
-
-        // Apply roll constraint to keep north up, except near poles
-        // let constrained_rotation = apply_roll_constraint(
-        //     delta_rotation,
-        //     state.camera_rig_position_world_space,
-        //     config,
-        // );
-        // let old_camera_rig_rotation_euler = state.camera_rig_rotation.to_euler(EulerRot::ZXY);
-        // let new_camera_rig_rotation_euler =
-        //     (delta_rotation * state.camera_rig_rotation).to_euler(EulerRot::ZXY);
-
-        // state.camera_rig_rotation = DQuat::from_euler(
-        //     EulerRot::ZXY,
-        //     old_camera_rig_rotation_euler.0 as f64, // Preserve existing roll angle for now
-        //     new_camera_rig_rotation_euler.1 as f64,
-        //     new_camera_rig_rotation_euler.2 as f64,
-        // );
-
         state.ned_frame_rotation = delta_rotation * state.ned_frame_rotation;
     }
 
@@ -443,33 +387,16 @@ fn update_ned_frame_origin(
     state.camera_rig_position_world_space =
         state.ned_frame_rotation * DVec3::new(0.0, 0.0, config.earth_radius as f64);
 
-    // Update camera rig transform from f64 state
-    // let old_camera_euler = camera_rig_transform.rotation.to_euler(EulerRot::ZXY);
-    // let old_roll_angle = old_camera_euler.0;
-    // let new_camera_euler = state.camera_rig_rotation.to_euler(EulerRot::ZXY);
-    // let constrained_rotation = apply_roll_constraint(
-    //     delta_rotation,
-    //     state.camera_rig_position_world_space,
-    //     config,
-    // );
-    // state.camera_rig_rotation = DQuat::from_euler(
-    //     EulerRot::ZXY,
-    //     old_camera_euler.0 as f64, // Preserve existing roll angle for now
-    //     new_camera_euler.1 as f64,
-    //     new_camera_euler.2 as f64,
-    // );
     ned_frame_transform.translation = state.camera_rig_position_world_space.as_vec3();
 
-    // camera_rig_transform.rotation = state.camera_rig_rotation.as_quat();
     ned_frame_transform.look_at(Vec3::ZERO, Vec3::Y);
+
     // TODO: blend this quaternion with the one we get by doing slerp()
     // Somehow we will need to eventually "transfer" the yaw rotation into the inner camera rotation
     // with the understanding that this rotation may not change in a continuous fashion.
     // Ideally, the camera rig's rotation will always have zero roll angle when possible, (i.e. not
     // near the poles) and the camera's local yaw angle will always match its global yaw angle,
     // we'll be able to interpret it as a compass bearing.
-
-    // camera_rig_transform.rotation = constrained_camera_rotation;
 }
 
 /// Position the camera in the camera rig's local space using orbit euler angles and radius.
