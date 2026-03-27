@@ -9,7 +9,7 @@ use bevy::{
     },
     // math::f64::*,
     math::prelude::*,
-    window::{PrimaryWindow, Window},
+    window::{CursorMoved, PrimaryWindow, Window},
 };
 
 use super::config::OrbitCameraConfig;
@@ -32,6 +32,8 @@ pub fn step(
     mut events: MessageWriter<OrbitCameraInputEvent>,
     mut mouse_wheel_reader: MessageReader<MouseWheel>,
     mut mouse_motion_events: MessageReader<MouseMotion>,
+    mut cursor_moved_events: MessageReader<CursorMoved>,
+    mut last_cursor_position: Local<Option<Vec2>>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
     // keyboard: Res<ButtonInput<KeyCode>>,
     window: Single<&Window, With<PrimaryWindow>>,
@@ -52,6 +54,13 @@ pub fn step(
         ..
     } = *config;
 
+    // Track the cursor position from CursorMoved events, since window.cursor_position()
+    // may not be populated on all platforms (e.g. native builds without a prior mouse move).
+    for event in cursor_moved_events.read() {
+        *last_cursor_position = Some(event.position);
+    }
+    let cursor_position = last_cursor_position.or(window.cursor_position());
+
     // There may be multiple mouse move events per frame, so we need to accumulate the deltas.
     let mut cursor_delta = Vec2::ZERO;
     for event in mouse_motion_events.read() {
@@ -69,7 +78,7 @@ pub fn step(
         // which becomes a "handle" with which to rotate the ellipsoid. On subsequent frames, we
         // must then compute the lat/lon deltas needed to move that handle point onto the new screen
         // ray passing through the mouse position.
-        window.cursor_position()
+        cursor_position
     } else {
         None
     };
@@ -93,7 +102,7 @@ pub fn step(
     }
 
     let zoom_start_cursor_position = if zoom_delta != 0.0 {
-        window.cursor_position()
+        cursor_position
     } else {
         None
     };

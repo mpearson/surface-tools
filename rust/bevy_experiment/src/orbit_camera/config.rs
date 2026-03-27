@@ -87,9 +87,9 @@ impl Default for OrbitCameraConfig {
             orbit_sensitivity: Vec2::new(0.4, 0.3),
             scroll_wheel_pixels_per_line: 16.0,
 
-            pan_smoothing: 200.0,
-            orbit_smoothing: 100.0,
-            zoom_smoothing: 100.0,
+            pan_smoothing: 100.0,
+            orbit_smoothing: 50.0,
+            zoom_smoothing: 20.0,
 
             max_distance: 10.0,
             min_distance: 0.1,

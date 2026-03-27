@@ -9,6 +9,7 @@ use bevy::{
     transform::components::{GlobalTransform, Transform},
 };
 
+use crate::common::rotation::great_circle_rotation;
 use crate::orbit_camera::{
     events::OrbitCameraInputEvent,
     plugin::{OrbitCameraChildRef, OrbitCameraRig},
@@ -78,7 +79,7 @@ fn update_zoom(
         .clamp(min_zoom_level, max_zoom_level);
 
     // Smooth interpolation of zoom level
-    let smoothing = (config.zoom_smoothing * dt as f64).min(1.0);
+    let smoothing = 1.0 - (-config.zoom_smoothing * dt as f64).exp();
     if smoothing > 0.0 {
         state.current_zoom_level +=
             (state.zoom_level_target - state.current_zoom_level) * smoothing;
@@ -144,8 +145,8 @@ fn update_orbit(
         state.euler_angles_target_delta.y += delta.x;
     }
 
-    let smoothing = config.orbit_smoothing * dt;
-    let euler_step = if smoothing > 0.0 {
+    let smoothing = 1.0 - (-config.orbit_smoothing * dt).exp();
+    let euler_step = if config.orbit_smoothing > 0.0 {
         let delta = state.euler_angles_target_delta * smoothing;
         state.euler_angles_target_delta -= delta;
         delta
@@ -188,6 +189,7 @@ fn calculate_rotation_to_preserve_point(
         current_world_pos.normalize(),
         start_world_pos.normalize(),
     ));
+    return Some(great_circle_rotation(current_world_pos, start_world_pos));
     // // Normalize both positions
     // let current_normalized = current_world_pos.as_dvec3().normalize();
     // let start_normalized = start_world_pos.normalize();
@@ -395,7 +397,7 @@ fn update_ned_frame_origin(
     ned_frame_transform: &mut Transform,
     dt: f32,
 ) {
-    let smoothing = (config.pan_smoothing * dt as f64).min(1.0);
+    let smoothing = 1.0 - (-config.pan_smoothing * dt as f64).exp();
 
     if state.pan.is_some() {
         let delta_rotation =
@@ -501,7 +503,7 @@ pub fn step(
         return;
     };
 
-    let frame_dt = time.delta_secs().min(0.001);
+    let frame_dt = time.delta_secs().min(0.1);
 
     for (camera_rig, config, mut state, child_ref) in &mut camera_rigs {
         // Draw a wireframe sphere to help visualize camera movements
