@@ -40,7 +40,7 @@ fn update_zoom(
     config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
     zoom_delta: f64,
-    zoom_start_cursor_position: Option<Vec2>,
+    cursor_position: Option<Vec2>,
     camera: &Camera,
     camera_transform: &GlobalTransform,
     dt: f32,
@@ -50,7 +50,7 @@ fn update_zoom(
 
     // Handle zoom state initialization/updates
     if zoom_delta != 0.0 {
-        if let Some(cursor_pos) = zoom_start_cursor_position {
+        if let Some(cursor_pos) = cursor_position {
             // Starting a new zoom operation - capture the world position under the cursor
             if let Some(world_pos) = cursor_to_world_on_sphere_f64(
                 cursor_pos,
@@ -319,14 +319,23 @@ fn update_position_target(
                 state.pan = None;
             }
         } else if let Some(pan_state) = state.pan.as_mut() {
-            // Already panning, so just update the screen-space offset with the latest delta.
-            pan_state.offset_screen_space += Vec2::new(pan_delta.x, pan_delta.y);
+            // If we have an absolute cursor position (inside window), use it directly
+            // and sync offset_screen_space so the fallback is seamless when cursor leaves.
+            // Otherwise, accumulate the raw MouseMotion delta.
+            if let Some(cursor_pos) = input.cursor_position {
+                pan_state.offset_screen_space = cursor_pos - pan_state.start_screen_space;
+            } else {
+                pan_state.offset_screen_space += pan_delta;
+            }
         }
 
         if let Some(pan_state) = state.pan.as_mut() {
+            let current_screen_pos =
+                pan_state.start_screen_space + pan_state.offset_screen_space;
+
             if let Some(rotation) = calculate_rotation_to_preserve_point(
                 pan_state.start_world_space,
-                pan_state.start_screen_space + pan_state.offset_screen_space,
+                current_screen_pos,
                 camera,
                 camera_transform,
                 pan_state.start_radius,
@@ -335,7 +344,7 @@ fn update_position_target(
 
                 // Debug gizmo for current mouse position on sphere
                 if let Some(mouse_pos_world_space) = cursor_to_world_on_sphere_f64(
-                    pan_state.start_screen_space + pan_state.offset_screen_space,
+                    current_screen_pos,
                     camera,
                     camera_transform,
                     pan_state.start_radius,
@@ -467,7 +476,7 @@ pub fn step(
                 config,
                 &mut state,
                 input.zoom_delta,
-                input.zoom_start_cursor_position,
+                input.cursor_position,
                 camera,
                 camera_global_transform,
                 frame_dt,

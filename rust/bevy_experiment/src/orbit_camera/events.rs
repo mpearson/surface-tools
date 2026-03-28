@@ -18,10 +18,13 @@ use super::config::OrbitCameraConfig;
 #[derive(Message)]
 pub struct OrbitCameraInputEvent {
     pub pan_start_screen_space: Option<Vec2>,
+    /// Raw mouse motion delta while panning (from MouseMotion, works outside window).
     pub pan_delta: Option<Vec2>,
+    /// Absolute cursor position (populated every frame when available).
+    /// When panning, the controller should prefer this over accumulating pan_delta.
+    pub cursor_position: Option<Vec2>,
     pub orbit_delta: Option<Vec2>,
     pub zoom_delta: f64,
-    pub zoom_start_cursor_position: Option<Vec2>,
 }
 
 /// Mouse input mapping system.
@@ -61,14 +64,6 @@ pub fn step(
     }
     let cursor_position = last_cursor_position.or(window.cursor_position());
 
-    // TODO: new plan. IF we have a CursorMoved event, we should use that. If we don't, but we do
-    // have a MouseMotion event (i.e. the mouse is outside the window) then we should accumulate the
-    // delta from those as we have been doing. But inside the window, we should be using the actual
-    // mouse position (and maybe just put that in the output event too). That way the camera
-    // controller can decide which one to use. The velocity differences in the raw MouseMotion event
-    // will hopefully be less apparent when the mouse is outside of the window and therefore not
-    // visibly drifting from the original "grab point" on the earth.
-
     // There may be multiple mouse move events per frame, so we need to accumulate the deltas.
     let mut cursor_delta = Vec2::ZERO;
     for event in mouse_motion_events.read() {
@@ -92,9 +87,8 @@ pub fn step(
     };
 
     // Depending on which mouse button is pressed, the mouse delta is applied to pan and/or orbit.
-    let pan_delta = mouse_buttons
-        .pressed(MouseButton::Left)
-        .then_some(cursor_delta);
+    let is_panning = mouse_buttons.pressed(MouseButton::Left);
+    let pan_delta = is_panning.then_some(cursor_delta);
     let orbit_delta = mouse_buttons
         .pressed(MouseButton::Right)
         .then_some(cursor_delta * -orbit_sensitivity);
@@ -109,17 +103,11 @@ pub fn step(
         zoom_delta -= scroll_amount as f64 * zoom_sensitivity;
     }
 
-    let zoom_start_cursor_position = if zoom_delta != 0.0 {
-        cursor_position
-    } else {
-        None
-    };
-
     events.write(OrbitCameraInputEvent {
         pan_start_screen_space,
         pan_delta,
+        cursor_position,
         orbit_delta,
         zoom_delta,
-        zoom_start_cursor_position,
     });
 }
