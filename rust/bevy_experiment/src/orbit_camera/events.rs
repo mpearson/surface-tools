@@ -17,7 +17,8 @@ use super::config::OrbitCameraConfig;
 /// Abstracted input event for orbit camera control.
 #[derive(Message)]
 pub struct OrbitCameraInputEvent {
-    pub pan_start_screen_space: Option<Vec2>,
+    pub pan_started: bool,
+    // pub pan_start_screen_space: Option<Vec2>,
     /// Raw mouse motion delta while panning (from MouseMotion, works outside window).
     pub pan_delta: Option<Vec2>,
     /// Absolute cursor position (populated every frame when available).
@@ -70,21 +71,7 @@ pub fn step(
         cursor_delta += event.delta;
     }
 
-    // If the left mouse button was pressed during this frame, get the current mouse position
-    // since this will be used to determine the "grab point" on the Earth's surface.
-    let pan_start_screen_space = if mouse_buttons.just_pressed(MouseButton::Left) {
-        // TODO: figure out which object has been grabbed. Is it the surface of the earth? 2D or
-        // 3D terrain? Or a waypoint or something?
-        // For now, we should assume it's the surface of a smooth spherical earth.
-
-        // Whatever we intersect, we need to get a point in spherical coordinates (lat, lon, alt?)
-        // which becomes a "handle" with which to rotate the ellipsoid. On subsequent frames, we
-        // must then compute the lat/lon deltas needed to move that handle point onto the new screen
-        // ray passing through the mouse position.
-        cursor_position
-    } else {
-        None
-    };
+    let pan_started = mouse_buttons.just_pressed(MouseButton::Left) && cursor_position.is_some();
 
     // Depending on which mouse button is pressed, the mouse delta is applied to pan and/or orbit.
     let is_panning = mouse_buttons.pressed(MouseButton::Left);
@@ -104,7 +91,7 @@ pub fn step(
     }
 
     events.write(OrbitCameraInputEvent {
-        pan_start_screen_space,
+        pan_started,
         pan_delta,
         cursor_position,
         orbit_delta,

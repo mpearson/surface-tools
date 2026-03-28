@@ -18,22 +18,21 @@ pub struct ZoomState {
 pub struct OrbitCameraState {
     pub radius: f64,
 
-    /// f64-precision rotation of the camera pivot (source of truth for pan).
-    /// The pivot entity's Transform.rotation is derived from this each frame.
-    pub ned_frame_rotation: DQuat,
+    /// f64 precision rotation of the NED frame origin (source of truth for pan).
+    /// The pivot entity's Transform.rotation is downcast from this each frame.
+    pub center_rotation: DQuat,
 
     /// Point on the earth surface the camera is centered on.
     /// Derived each frame from camera_center_rotation.
     pub camera_rig_position_world_space: DVec3,
 
-    pub ned_frame_rotation_target: DQuat,
+    pub center_rotation_ref: DQuat,
     pub pan: Option<PanState>,
 
-    pub zoom_rotation_target: DQuat,
+    pub zoom_rotation_reference: DQuat,
     pub zoom: Option<ZoomState>,
 
-    pub right_click_start: Vec3,
-    pub zoom_level_target: f64,
+    pub zoom_level_ref: f64,
     pub current_zoom_level: f64,
     pub current_euler_angles: Vec3,
     pub euler_angles_target_delta: Vec3,
@@ -43,14 +42,13 @@ impl Default for OrbitCameraState {
     fn default() -> Self {
         Self {
             radius: 20.0,
-            ned_frame_rotation: DQuat::IDENTITY,
+            center_rotation: DQuat::IDENTITY,
             camera_rig_position_world_space: DVec3::new(0.0, 0.0, 1.0),
-            ned_frame_rotation_target: DQuat::IDENTITY,
+            center_rotation_ref: DQuat::IDENTITY,
             pan: None,
-            zoom_rotation_target: DQuat::IDENTITY,
+            zoom_rotation_reference: DQuat::IDENTITY,
             zoom: None,
-            right_click_start: Vec3::ZERO,
-            zoom_level_target: 0.0,
+            zoom_level_ref: 0.0,
             current_zoom_level: 0.0,
             current_euler_angles: Vec3::new(0.0, 0.0, 0.0),
             euler_angles_target_delta: Vec3::ZERO,
