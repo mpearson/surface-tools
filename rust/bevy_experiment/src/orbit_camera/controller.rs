@@ -330,18 +330,20 @@ fn update_center_rotation_ref(
         } else {
             state.pan = None;
         }
-    } else if let Some(pan_state) = state.pan.as_mut() {
-        // If we have an absolute cursor position (inside window), use it directly
-        // and sync offset_screen_space so the fallback is seamless when cursor leaves.
-        // Otherwise, accumulate the raw MouseMotion delta.
-        if let Some(cursor_pos) = input.cursor_position {
-            pan_state.offset_screen_space = cursor_pos - pan_state.start_screen_space;
-        } else {
-            pan_state.offset_screen_space += pan_delta;
-        }
     }
 
     if let Some(pan_state) = state.pan.as_mut() {
+        if !input.pan_started {
+            // If we have an absolute cursor position (inside window), use it directly
+            // and sync offset_screen_space so the fallback is seamless when cursor leaves.
+            // Otherwise, accumulate the raw MouseMotion delta.
+            if let Some(cursor_pos) = input.cursor_position {
+                pan_state.offset_screen_space = cursor_pos - pan_state.start_screen_space;
+            } else {
+                pan_state.offset_screen_space += pan_delta;
+            }
+        }
+
         let current_screen_pos = pan_state.start_screen_space + pan_state.offset_screen_space;
 
         if let Some(rotation) = calculate_rotation_to_preserve_point(
@@ -379,7 +381,7 @@ fn update_center_rotation_ref(
     }
 }
 
-fn update_ned_frame_origin(
+fn update_camera_center_transform(
     config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
     ned_frame_transform: &mut Transform,
@@ -416,7 +418,7 @@ fn update_ned_frame_origin(
 }
 
 /// Position the camera in the camera rig's local space using orbit euler angles and radius.
-fn update_camera_rotation(state: &OrbitCameraState, camera_transform: &mut Transform) {
+fn update_camera_orbit_transform(state: &OrbitCameraState, camera_transform: &mut Transform) {
     let radius = state.radius.max(f64::EPSILON) as f32;
     let pitch = state.current_euler_angles.x.to_radians();
     let yaw = state.current_euler_angles.y.to_radians();
@@ -466,7 +468,6 @@ pub fn step(
             // which becomes a "handle" with which to rotate the ellipsoid. On subsequent frames, we
             // must then compute the lat/lon deltas needed to move that handle point onto the new
             // screen ray passing through the mouse position.
-
             let cursor_position_world_space = if let Some(cursor_position) = input.cursor_position {
                 cursor_to_world_on_sphere_f64(
                     cursor_position,
@@ -501,11 +502,17 @@ pub fn step(
             update_orbit(config, &mut state, input.orbit_delta, frame_dt);
 
             // TODO: figure out if there's a cleaner way to get to these transforms, ew
-            let mut ned_frame_transform = transforms.get_mut(camera_container).unwrap();
-            update_ned_frame_origin(config, &mut state, &mut ned_frame_transform, frame_dt);
-
-            let mut camera_transform = transforms.get_mut(camera_entity).unwrap();
-            update_camera_rotation(&state, &mut camera_transform);
+            // let mut camera_center_transform = transforms.get_mut(camera_container).unwrap();
+            update_camera_center_transform(
+                config,
+                &mut state,
+                transforms.get_mut(camera_container).unwrap().as_mut(),
+                frame_dt,
+            );
+            update_camera_orbit_transform(
+                &state,
+                transforms.get_mut(camera_entity).unwrap().as_mut(),
+            );
         }
     }
 }
