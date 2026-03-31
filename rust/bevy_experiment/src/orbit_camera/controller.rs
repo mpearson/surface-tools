@@ -302,12 +302,13 @@ fn calculate_rotation_to_preserve_point(
 /// -
 
 fn update_center_rotation_ref(
-    _config: &OrbitCameraConfig,
+    config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
     input: &OrbitCameraInputEvent,
     cursor_world_space: &Option<Vec3>,
     camera: &Camera,
     camera_transform: &GlobalTransform,
+    dt: f32,
     gizmos: &mut Gizmos,
 ) {
     let Some(pan_delta) = input.pan_delta else {
@@ -346,9 +347,20 @@ fn update_center_rotation_ref(
 
         let current_screen_pos = pan_state.start_screen_space + pan_state.offset_screen_space;
 
+        // Project start_world_space into screen space so we can interpolate toward the
+        // cursor in 2D rather than slerping the rotation quaternion in 3D.
+        let interpolated_screen_pos = if let Ok(projected_start) =
+            camera.world_to_viewport(camera_transform, pan_state.start_world_space.as_vec3())
+        {
+            let smoothing = (1.0 - (-config.pan_smoothing * dt as f64).exp()) as f32;
+            projected_start + smoothing * (current_screen_pos - projected_start)
+        } else {
+            current_screen_pos
+        };
+
         if let Some(rotation) = calculate_rotation_to_preserve_point(
             pan_state.start_world_space,
-            current_screen_pos,
+            interpolated_screen_pos,
             camera,
             camera_transform,
             pan_state.start_radius,
@@ -357,7 +369,7 @@ fn update_center_rotation_ref(
 
             // Debug gizmo for current mouse position on sphere
             if let Some(mouse_pos_world_space) = cursor_to_world_on_sphere_f64(
-                current_screen_pos,
+                interpolated_screen_pos,
                 camera,
                 camera_transform,
                 pan_state.start_radius,
@@ -384,15 +396,10 @@ fn update_center_rotation_ref(
 fn update_camera_center_transform(
     config: &OrbitCameraConfig,
     state: &mut OrbitCameraState,
-    ned_frame_transform: &mut Transform,
-    dt: f32,
+    center_transform: &mut Transform,
 ) {
-    let smoothing = 1.0 - (-config.pan_smoothing * dt as f64).exp();
-
     if state.pan.is_some() {
-        let delta_rotation = DQuat::slerp(DQuat::IDENTITY, state.center_rotation_ref, smoothing);
-
-        state.center_rotation = delta_rotation * state.center_rotation;
+        state.center_rotation = state.center_rotation_ref * state.center_rotation;
     }
 
     // Apply zoom rotation immediately (without smoothing) to maintain the constraint
@@ -402,12 +409,12 @@ fn update_camera_center_transform(
     }
 
     // Derive world-space center point from rotation
-    state.camera_rig_position_world_space =
+    state.center_position_world_space =
         state.center_rotation * DVec3::new(0.0, 0.0, config.earth_radius as f64);
 
-    ned_frame_transform.translation = state.camera_rig_position_world_space.as_vec3();
+    center_transform.translation = state.center_position_world_space.as_vec3();
 
-    ned_frame_transform.look_at(Vec3::ZERO, Vec3::Y);
+    center_transform.look_at(Vec3::ZERO, Vec3::Y);
 
     // TODO: blend this quaternion with the one we get by doing slerp()
     // Somehow we will need to eventually "transfer" the yaw rotation into the inner camera rotation
@@ -487,6 +494,7 @@ pub fn step(
                 &cursor_position_world_space,
                 camera,
                 camera_global_transform,
+                frame_dt,
                 &mut gizmos,
             );
             update_zoom(
@@ -507,7 +515,6 @@ pub fn step(
                 config,
                 &mut state,
                 transforms.get_mut(camera_container).unwrap().as_mut(),
-                frame_dt,
             );
             update_camera_orbit_transform(
                 &state,

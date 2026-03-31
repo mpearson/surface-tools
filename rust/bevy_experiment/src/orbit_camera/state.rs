@@ -24,7 +24,7 @@ pub struct OrbitCameraState {
 
     /// Point on the earth surface the camera is centered on.
     /// Derived each frame from camera_center_rotation.
-    pub camera_rig_position_world_space: DVec3,
+    pub center_position_world_space: DVec3,
 
     pub center_rotation_ref: DQuat,
     pub pan: Option<PanState>,
@@ -43,7 +43,7 @@ impl Default for OrbitCameraState {
         Self {
             radius: 20.0,
             center_rotation: DQuat::IDENTITY,
-            camera_rig_position_world_space: DVec3::new(0.0, 0.0, 1.0),
+            center_position_world_space: DVec3::new(0.0, 0.0, 1.0),
             center_rotation_ref: DQuat::IDENTITY,
             pan: None,
             zoom_rotation_reference: DQuat::IDENTITY,
