@@ -347,6 +347,30 @@ fn update_center_rotation_ref(
 
         let current_screen_pos = pan_state.start_screen_space + pan_state.offset_screen_space;
 
+        // TODO: try this: instead of interpolating in screen space, let's imagine a plane slicing
+        // the earth. A plane can be fully constrained by two intersecting rays - where are they?
+        // - camera to the original grab point where we started dragging
+        // - camera to the current mouse position projected onto the surface of the earth
+        //
+        // This plane will not necessarily pass through the center of the earth (i.e. it won't
+        // necessarily be normal to the earth's surface).
+        //
+        // Once we have this plane, we want to rotate the earth on an axis which is normal to it.
+        // Of course, that axis also needs to pass through the center of the earth, so it's fully
+        // defined.
+
+        // Update: after more thought, I am convinced that the method above will behave better than
+        // the original method of using DQuat::from_rotation_arc() and then DQuat::slerp() to move
+        // the grab point towards the cursor. However, it will have the same problem of almost every
+        // drag direction resulting in the yaw angle changing (i.e. North will not remain up).
+        // However, I have a new idea for that as well: after applying this plane-normal rotation,
+        // we just need to figure out what the yaw deviation is, and then rotate the camera center
+        // about an axis from the center of the earth to the current position, by that same angle.
+        // This should result in a motion where both of these constraints are maintained:
+        // - The grab point moves along a straight line in screen space (since a straight line in
+        //   world space will project to a straight line in screen space)
+        // - The camera rig's yaw angle in the NED frame remains constant (i.e. North remains up)
+
         // Project start_world_space into screen space so we can interpolate toward the
         // cursor in 2D rather than slerping the rotation quaternion in 3D.
         let interpolated_screen_pos = if let Ok(projected_start) =
