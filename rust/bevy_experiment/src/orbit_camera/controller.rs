@@ -17,7 +17,9 @@ use crate::orbit_camera::{
 };
 
 use super::config::OrbitCameraConfig;
-use super::geometry::{compute_latitude, compute_longitude, cursor_to_world_on_sphere_f64};
+use super::geometry::{
+    compute_latitude, compute_longitude, cursor_to_world_on_sphere_f64, nearest_point_on_sphere_f64,
+};
 
 fn distance_to_zoom_level(distance: f64) -> f64 {
     -distance.ln()
@@ -372,7 +374,7 @@ fn update_center_rotation_ref(
         // - The camera rig's yaw angle in the NED frame remains constant (i.e. North remains up)
 
         // Project start_world_space into screen space so we can interpolate toward the
-        // cursor in 2D rather than slerping the rotation quaternion in 3D.
+        // cursor in 2D for smooth convergence.
         let interpolated_screen_pos = if let Ok(projected_start) =
             camera.world_to_viewport(camera_transform, pan_state.start_world_space.as_vec3())
         {
@@ -382,33 +384,101 @@ fn update_center_rotation_ref(
             current_screen_pos
         };
 
-        if let Some(rotation) = calculate_rotation_to_preserve_point(
-            pan_state.start_world_space,
-            interpolated_screen_pos,
-            camera,
-            camera_transform,
-            pan_state.start_radius,
-        ) {
-            state.center_rotation_ref = rotation;
+        // --- Plane-normal rotation ---
+        // Two rays from the camera (to grab point + to cursor point) define a plane.
+        // We rotate the Earth about this plane's normal (through the origin).
+        // This produces straight-line screen-space motion of the grab point.
 
-            // Debug gizmo for current mouse position on sphere
-            if let Some(mouse_pos_world_space) = cursor_to_world_on_sphere_f64(
-                interpolated_screen_pos,
-                camera,
-                camera_transform,
-                pan_state.start_radius,
-            )
-            .map(|v| v.as_vec3())
-            {
-                gizmos.sphere(
-                    Isometry3d::from_translation(mouse_pos_world_space),
-                    0.05,
-                    Color::srgb(0.0, 1.0, 0.0),
+        let cam_pos = camera_transform.translation().as_dvec3();
+
+        // Get cursor-on-sphere, using nearest_point_on_sphere as fallback for misses
+        let Some(ray) = camera
+            .viewport_to_world(camera_transform, interpolated_screen_pos)
+            .ok()
+        else {
+            return;
+        };
+        let ray_origin = ray.origin.as_dvec3();
+        let ray_dir = ray.direction.as_dvec3().normalize();
+        let cursor_on_sphere =
+            nearest_point_on_sphere_f64(ray_origin, ray_dir, DVec3::ZERO, pan_state.start_radius);
+
+        let dir_grab = (pan_state.start_world_space - cam_pos).normalize();
+        let dir_cursor = (cursor_on_sphere - cam_pos).normalize();
+
+        // Plane normal from cross product of the two view rays
+        let plane_normal = dir_grab.cross(dir_cursor);
+        let plane_normal_len = plane_normal.length();
+        if plane_normal_len < 1e-12 {
+            state.center_rotation_ref = DQuat::IDENTITY;
+        } else {
+            let n = plane_normal / plane_normal_len;
+
+            // Rotation angle about n: project both sphere points onto the plane
+            // perpendicular to n, then measure the signed angle between projections.
+            let s = pan_state.start_world_space;
+            let c = cursor_on_sphere;
+            let proj_s = s - n * s.dot(n);
+            let proj_c = c - n * c.dot(n);
+            let angle = f64::atan2(proj_c.cross(proj_s).dot(n), proj_c.dot(proj_s));
+            let plane_rotation = DQuat::from_axis_angle(n, angle);
+
+            // --- Yaw correction (north-up preservation) ---
+            // Measure how much "north" rotated due to the plane-normal rotation,
+            // then compensate with a rotation about the radial axis.
+
+            let old_pos = state.center_rotation * DVec3::new(0.0, 0.0, config.earth_radius as f64);
+            let r_old = old_pos.normalize();
+            let n_old = DVec3::Y - r_old * DVec3::Y.dot(r_old); // north at old position
+
+            let new_pos = plane_rotation * old_pos;
+            let r_new = new_pos.normalize();
+            let n_new = DVec3::Y - r_new * DVec3::Y.dot(r_new); // true north at new position
+            let n_transported = plane_rotation * n_old; // where old-north ended up
+
+            // Project transported-north into tangent plane at new position
+            let n_transported_proj = n_transported - r_new * n_transported.dot(r_new);
+
+            let n_new_len = n_new.length();
+            let n_transported_len = n_transported_proj.length();
+
+            let yaw_correction = if n_new_len < 1e-10 || n_transported_len < 1e-10 {
+                // At or very near the poles, north is undefined
+                DQuat::IDENTITY
+            } else {
+                // Signed angle between transported and true north, about the radial axis
+                let yaw_deviation = f64::atan2(
+                    n_transported_proj.cross(n_new).dot(r_new),
+                    n_transported_proj.dot(n_new),
                 );
-            }
+
+                // Latitude-based blend: relax near poles where north is ambiguous
+                let latitude = compute_latitude(new_pos);
+                let lat_deg = latitude.to_degrees().abs();
+                let constraint = if lat_deg <= config.roll_constraint_low_lat {
+                    1.0
+                } else if lat_deg >= config.roll_constraint_high_lat {
+                    0.0
+                } else {
+                    let t = (lat_deg - config.roll_constraint_low_lat)
+                        / (config.roll_constraint_high_lat - config.roll_constraint_low_lat);
+                    1.0 - (3.0 * t * t - 2.0 * t * t * t)
+                };
+
+                DQuat::from_axis_angle(r_new, yaw_deviation * constraint)
+            };
+
+            state.center_rotation_ref = yaw_correction * plane_rotation;
         }
 
-        // Debug gizmos for initial mouse position on sphere
+        // Debug gizmo for current cursor position on sphere
+        gizmos.sphere(
+            Isometry3d::from_translation(cursor_on_sphere.as_vec3()),
+            0.05,
+            Color::srgb(0.0, 1.0, 0.0),
+        );
+
+        // Debug gizmo for initial grab point on sphere
         gizmos.sphere(
             Isometry3d::from_translation(pan_state.start_world_space.as_vec3()),
             0.05,
@@ -422,14 +492,17 @@ fn update_camera_center_transform(
     state: &mut OrbitCameraState,
     center_transform: &mut Transform,
 ) {
+    let mut center_rotation_relative = DQuat::IDENTITY;
     if state.pan.is_some() {
         state.center_rotation = state.center_rotation_ref * state.center_rotation;
+        center_rotation_relative = state.center_rotation_ref;
     }
 
     // Apply zoom rotation immediately (without smoothing) to maintain the constraint
     // that the world point stays under the cursor throughout the zoom
     if state.zoom.is_some() {
         state.center_rotation = state.zoom_rotation_reference * state.center_rotation;
+        center_rotation_relative = state.zoom_rotation_reference * center_rotation_relative;
     }
 
     // Derive world-space center point from rotation
@@ -438,7 +511,9 @@ fn update_camera_center_transform(
 
     center_transform.translation = state.center_position_world_space.as_vec3();
 
-    center_transform.look_at(Vec3::ZERO, Vec3::Y);
+    center_transform.rotate(-center_rotation_relative.as_quat());
+
+    // center_transform.look_at(Vec3::ZERO, Vec3::Y);
 
     // TODO: blend this quaternion with the one we get by doing slerp()
     // Somehow we will need to eventually "transfer" the yaw rotation into the inner camera rotation
