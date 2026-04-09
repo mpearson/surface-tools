@@ -389,67 +389,77 @@ fn update_center_rotation_ref(
         // We rotate the Earth about this plane's normal (through the origin).
         // This produces straight-line screen-space motion of the grab point.
 
-        let cam_pos = camera_transform.translation().as_dvec3();
+        let camera_pos_world_space = camera_transform.translation().as_dvec3();
 
         // Get cursor-on-sphere, using nearest_point_on_sphere as fallback for misses
-        let Some(ray) = camera
+        let Some(cursor_view_ray) = camera
             .viewport_to_world(camera_transform, interpolated_screen_pos)
             .ok()
         else {
             return;
         };
-        let ray_origin = ray.origin.as_dvec3();
-        let ray_dir = ray.direction.as_dvec3().normalize();
-        let cursor_on_sphere =
-            nearest_point_on_sphere_f64(ray_origin, ray_dir, DVec3::ZERO, pan_state.start_radius);
+        let cursor_on_sphere = nearest_point_on_sphere_f64(
+            camera_pos_world_space,
+            cursor_view_ray.direction.as_dvec3().normalize(),
+            DVec3::ZERO,
+            pan_state.start_radius,
+        );
 
-        let dir_grab = (pan_state.start_world_space - cam_pos).normalize();
-        let dir_cursor = (cursor_on_sphere - cam_pos).normalize();
+        let grab_point_view_dir = pan_state.start_world_space - camera_pos_world_space;
+        let cursor_view_dir = cursor_on_sphere - camera_pos_world_space;
 
         // Plane normal from cross product of the two view rays
-        let plane_normal = dir_grab.cross(dir_cursor);
-        let plane_normal_len = plane_normal.length();
-        if plane_normal_len < 1e-12 {
-            state.center_rotation_ref = DQuat::IDENTITY;
-        } else {
-            let n = plane_normal / plane_normal_len;
+        let mut rotation_axis = grab_point_view_dir.cross(cursor_view_dir);
+        let rotation_axis_length_squared = rotation_axis.length_squared();
 
-            // Rotation angle about n: project both sphere points onto the plane
-            // perpendicular to n, then measure the signed angle between projections.
-            let s = pan_state.start_world_space;
-            let c = cursor_on_sphere;
-            let proj_s = s - n * s.dot(n);
-            let proj_c = c - n * c.dot(n);
-            let angle = f64::atan2(proj_c.cross(proj_s).dot(n), proj_c.dot(proj_s));
-            let plane_rotation = DQuat::from_axis_angle(n, angle);
+        state.center_rotation_ref = if rotation_axis_length_squared < 1e-20 {
+            DQuat::IDENTITY
+        } else {
+            rotation_axis /= rotation_axis_length_squared.sqrt();
+
+            // Rotation angle about rotation_axis: project both sphere points onto the
+            // plane perpendicular to rotation_axis, then measure the signed angle
+            // between projections.
+            // let start_projected = pan_state.start_world_space
+            //     - rotation_axis * pan_state.start_world_space.dot(rotation_axis);
+            // let cursor_projected =
+            //     cursor_on_sphere - rotation_axis * cursor_on_sphere.dot(rotation_axis);
+            // let angle = f64::atan2(
+            //     cursor_projected.cross(start_projected).dot(rotation_axis),
+            //     cursor_projected.dot(start_projected),
+            // );
+            let angle = pan_state.start_world_space.angle_between(cursor_on_sphere);
+
+            let plane_rotation = DQuat::from_axis_angle(rotation_axis, angle);
 
             // --- Yaw correction (north-up preservation) ---
             // Measure how much "north" rotated due to the plane-normal rotation,
             // then compensate with a rotation about the radial axis.
 
             let old_pos = state.center_rotation * DVec3::new(0.0, 0.0, config.earth_radius as f64);
-            let r_old = old_pos.normalize();
-            let n_old = DVec3::Y - r_old * DVec3::Y.dot(r_old); // north at old position
+            let radial_old = old_pos.normalize();
+            let north_old = DVec3::Y - radial_old * DVec3::Y.dot(radial_old); // north at old position
 
             let new_pos = plane_rotation * old_pos;
-            let r_new = new_pos.normalize();
-            let n_new = DVec3::Y - r_new * DVec3::Y.dot(r_new); // true north at new position
-            let n_transported = plane_rotation * n_old; // where old-north ended up
+            let radial_new = new_pos.normalize();
+            let north_new = DVec3::Y - radial_new * DVec3::Y.dot(radial_new); // true north at new position
+            let north_transported = plane_rotation * north_old; // where old-north ended up
 
             // Project transported-north into tangent plane at new position
-            let n_transported_proj = n_transported - r_new * n_transported.dot(r_new);
+            let north_transported_projected =
+                north_transported - radial_new * north_transported.dot(radial_new);
 
-            let n_new_len = n_new.length();
-            let n_transported_len = n_transported_proj.length();
+            let north_new_len = north_new.length();
+            let north_transported_len = north_transported_projected.length();
 
-            let yaw_correction = if n_new_len < 1e-10 || n_transported_len < 1e-10 {
+            let yaw_correction = if north_new_len < 1e-10 || north_transported_len < 1e-10 {
                 // At or very near the poles, north is undefined
                 DQuat::IDENTITY
             } else {
                 // Signed angle between transported and true north, about the radial axis
                 let yaw_deviation = f64::atan2(
-                    n_transported_proj.cross(n_new).dot(r_new),
-                    n_transported_proj.dot(n_new),
+                    north_transported_projected.cross(north_new).dot(radial_new),
+                    north_transported_projected.dot(north_new),
                 );
 
                 // Latitude-based blend: relax near poles where north is ambiguous
@@ -460,16 +470,15 @@ fn update_center_rotation_ref(
                 } else if lat_deg >= config.roll_constraint_high_lat {
                     0.0
                 } else {
-                    let t = (lat_deg - config.roll_constraint_low_lat)
+                    let blend_t = (lat_deg - config.roll_constraint_low_lat)
                         / (config.roll_constraint_high_lat - config.roll_constraint_low_lat);
-                    1.0 - (3.0 * t * t - 2.0 * t * t * t)
+                    1.0 - (3.0 * blend_t * blend_t - 2.0 * blend_t * blend_t * blend_t)
                 };
 
-                DQuat::from_axis_angle(r_new, yaw_deviation * constraint)
+                DQuat::from_axis_angle(radial_new, yaw_deviation * constraint)
             };
-
-            state.center_rotation_ref = yaw_correction * plane_rotation;
-        }
+            yaw_correction * plane_rotation
+        };
 
         // Debug gizmo for current cursor position on sphere
         gizmos.sphere(
