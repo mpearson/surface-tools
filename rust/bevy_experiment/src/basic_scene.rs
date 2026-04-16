@@ -30,7 +30,13 @@ pub fn spawn_cube(
 
     commands.spawn((
         Mesh3d(meshes.add(Sphere::new(radius).mesh().ico(5).unwrap())),
-        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgba_u8(124, 144, 255, 51),
+            alpha_mode: AlphaMode::Blend,
+            double_sided: true,
+            cull_mode: None,
+            ..default()
+        })),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
     // light
@@ -52,7 +58,7 @@ pub fn spawn_cube(
 // }
 
 pub fn draw_axes_gizmo(mut gizmos: Gizmos) {
-    gizmos.axes(Transform::IDENTITY, 2.0);
+    // gizmos.axes(Transform::IDENTITY, 2.0);
 }
 
 pub struct BasicScenePlugin;

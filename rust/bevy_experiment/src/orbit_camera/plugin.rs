@@ -51,7 +51,10 @@ pub fn spawn_camera(mut commands: Commands) {
 impl Plugin for OrbitCameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_camera)
-            .add_systems(PreUpdate, events::step)
+            .add_systems(
+                PreUpdate,
+                events::step.after(crate::common::mouse_interaction::classify_mouse_interaction),
+            )
             .add_systems(Update, controller::step)
             .add_message::<events::OrbitCameraInputEvent>();
     }

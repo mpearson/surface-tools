@@ -1,16 +1,11 @@
-// use bevy::math;
-// use std::env;
-// use bevy::prelude::*;
 use bevy::{
     ecs::prelude::*,
-    input::{
-        mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
-        prelude::*,
-    },
-    // math::f64::*,
+    input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
     math::prelude::*,
     window::{CursorMoved, PrimaryWindow, Window},
 };
+
+use crate::common::mouse_interaction::{MouseInteractionPhase, MouseInteractionState};
 
 use super::config::OrbitCameraConfig;
 
@@ -38,8 +33,8 @@ pub fn step(
     mut mouse_motion_events: MessageReader<MouseMotion>,
     mut cursor_moved_events: MessageReader<CursorMoved>,
     mut last_cursor_position: Local<Option<Vec2>>,
-    mouse_buttons: Res<ButtonInput<MouseButton>>,
-    // keyboard: Res<ButtonInput<KeyCode>>,
+    mut was_left_dragging: Local<bool>,
+    mouse_state: Res<MouseInteractionState>,
     window: Single<&Window, With<PrimaryWindow>>,
     configs: Query<&OrbitCameraConfig>,
 ) {
@@ -71,14 +66,15 @@ pub fn step(
         cursor_delta += event.delta;
     }
 
-    let pan_started = mouse_buttons.just_pressed(MouseButton::Left) && cursor_position.is_some();
+    // Use the shared mouse interaction state for click/drag disambiguation.
+    // Pan only starts once the cursor has moved beyond the dead zone threshold.
+    let is_left_dragging = mouse_state.left.phase == MouseInteractionPhase::Dragging;
+    let pan_started = is_left_dragging && !*was_left_dragging && cursor_position.is_some();
+    *was_left_dragging = is_left_dragging;
 
-    // Depending on which mouse button is pressed, the mouse delta is applied to pan and/or orbit.
-    let is_panning = mouse_buttons.pressed(MouseButton::Left);
-    let pan_delta = is_panning.then_some(cursor_delta);
-    let orbit_delta = mouse_buttons
-        .pressed(MouseButton::Right)
-        .then_some(cursor_delta * -orbit_sensitivity);
+    let pan_delta = is_left_dragging.then_some(cursor_delta);
+    let is_right_dragging = mouse_state.right.phase == MouseInteractionPhase::Dragging;
+    let orbit_delta = is_right_dragging.then_some(cursor_delta * -orbit_sensitivity);
 
     let mut zoom_delta = 0.0;
     for event in mouse_wheel_reader.read() {
