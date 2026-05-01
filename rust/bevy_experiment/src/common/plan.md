@@ -1,217 +1,320 @@
-# Long-term Pointer Input Architecture
+# Smart Map Layer Architecture (replaces in-flight Pointer Input + ActiveTool plan)
 
 ## Context
 
-The current setup ([common/mouse_interaction.rs](rust/bevy_experiment/src/common/mouse_interaction.rs)) classifies left/right mouse buttons into a 4-state FSM (`Idle` / `PendingClassification` / `Dragging` / `Clicked(Vec2)`) inside a `MouseInteractionState` resource. Two consumer modules poll that resource in `PreUpdate` and emit their own typed messages: [orbit_camera/events.rs](rust/bevy_experiment/src/orbit_camera/events.rs) reacts to `Dragging` for pan/orbit, and [polygon_tool/events.rs](rust/bevy_experiment/src/polygon_tool/events.rs) reacts to the single-frame `Clicked(Vec2)` for add/remove control points. The `PreUpdate`-mapping → `Update`-controller split is solid.
+The Bevy app at [rust/bevy_experiment/](rust/bevy_experiment/) is being built to replace deck.gl in a TypeScript web app that has many "modal tools" — box-select, polygon edit, waypoint drag, hover highlight, etc. The TS app's tool implementations are mature and stay where they are; **business logic remains on the TS side**. Bevy's job is rendering plus *low-latency* feedback loops where crossing the JS↔WASM boundary every frame would feel bad (drag-a-waypoint and re-route its connecting lines, draw-and-update a rubber-band rectangle, hover-swap an icon).
 
-The design has three concrete weaknesses that will get worse as features grow:
+The in-flight plan at [rust/bevy_experiment/src/common/plan.md](rust/bevy_experiment/src/common/plan.md) introduced a layered pipeline (`pointer_input` → `active_tool` → tool-typed events → tool controllers) modeled on a *modal tool* concept. That pipeline's bottom and top halves are correct; the **middle layer (`ActiveTool`) is the wrong abstraction** for this product. Tools-as-public-concept conflates spatial routing ("this entity is interactive, that empty space is camera") with modal exclusivity ("only the polygon tool reacts to clicks") — and in a deck.gl-style API there is no global "active tool", only a pile of layers each with their own hit-test and interaction policy.
 
-1. **`Clicked(Vec2)` is an event masquerading as state.** The FSM manually clears it next frame; consumers must run before the clear. It works because of system ordering, but it's the exact pattern Bevy's messages exist for.
-2. **No room for modifiers, double-click, or hover.** Each addition requires extending the FSM and the consumer's polling logic. There's no concept of "this gesture started with Shift held," which matters because mid-drag modifier changes shouldn't reclassify a gesture.
-3. **No tool exclusivity.** Today, polygon\_tool only acts on `Clicked` and orbit\_camera only acts on `Dragging`, so they don't collide by accident. The moment we add box-select (also drag) or zoom-on-double-click (also click), there's nothing in the architecture to mediate.
+This plan keeps the in-flight Layer 1 (`pointer_input`) and the picking-extraction work, **replaces Layer 2** with a smart-layer framework (per-layer plugins, hit-test arbitration, gesture routing), and reframes the public API as **interactive map layers** instead of tools. The existing `polygon_tool` proof-of-concept is preserved untouched as a reference; the first true smart layer to ship will be a new `IconLayer` (waypoints with hover + drag).
 
-**The user wants:** full long-term design + migration path, with a **modal** tool model (explicit `ActiveTool` resource routes left-button input to one tool at a time; camera-secondary inputs like right-drag orbit and scroll-zoom are always-on).
+## Architecture
 
-## Recommended Architecture
-
-Four layers, top to bottom, each emitting messages consumed by the next:
+Five concerns, top to bottom. Each emits messages or writes a frame-scoped resource consumed by the next.
 
 ```
-[ Raw input ]   bevy::input    ButtonInput, MouseMotion, MouseWheel, CursorMoved, KeyCode
+[ Raw input ]            bevy::input — ButtonInput, MouseMotion, MouseWheel, CursorMoved, KeyCode
        ↓
-[ Layer 1 ]     pointer_input  PointerPress / PointerRelease / PointerClick / PointerDoubleClick
-                               PointerDragStart / PointerDrag / PointerDragEnd / PointerMove
-                               + private FSM resource, public read-only PointerState
+[ pointer_input ]        FSM emits PointerPress / Release / Click / DoubleClick
+                         / DragStart / Drag / DragEnd / Move (modifiers frozen at press)
+                         + private FSM resource, public read-only PointerState
        ↓
-[ Layer 2 ]     active_tool    ActiveTool resource (Pan, Polygon, BoxSelect, ...)
-                               run_if filters gate tool-specific input mappers
+[ Per-layer hit-tests ]  Each layer plugin runs a hit-test system that writes LayerHit
+                         candidates into a frame-scoped HitCandidates resource
        ↓
-[ Layer 3 ]     <tool>/events  PolygonToolInputEvent, OrbitCameraInputEvent, BoxSelectInputEvent...
+[ Dispatcher ]           Reads pointer messages + HitCandidates, routes each gesture
+                         to a layer (frozen at press) or to camera fallback. Emits
+                         LayerGesture (targeted) or UnclaimedGesture (camera + click-empty)
        ↓
-[ Layer 4 ]     <tool>/controller  Apply state changes (existing pattern)
+[ Layer controllers ]    Each layer consumes its targeted LayerGesture, mutates its
+                         own state locally (low-latency), emits typed outbound events
+                         (e.g. IconEvent::DragStart) consumed by the bridge
+       ↓
+[ Bridge (future) ]      Forwards selected outbound events to JS via wasm_bindgen,
+                         throttled per BridgePolicy (the seam, not implemented)
 ```
 
-### Layer 1 — `common/pointer_input` (rename + expand `mouse_interaction`)
+The `pointer_input` and picking layers from the in-flight plan are kept in full. The dispatcher and the smart-layer model are new.
 
-The gesture detector. **All output is messages**; the FSM resource becomes private.
+## Smart Layer Model
 
-**Messages** (all derive `Message`, all emitted in `PreUpdate`):
+A "smart layer" is **one Bevy plugin** that:
+
+1. Renders its own data.
+2. Tags its interactive entities with the `Interactive` component so the framework can hit-test them.
+3. Runs a hit-test system in `PreUpdate` that writes candidates into `HitCandidates`.
+4. Consumes targeted `LayerGesture` messages, mutates its state locally, emits typed outbound events.
+5. Lives in its own folder (e.g. `layers/icon/`).
+
+### Public contract: `Interactive` component
 
 ```rust
-#[derive(Clone, Copy, Debug)]
-pub enum PointerButton { Left, Right, Middle }
+// common/interaction.rs
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct ModifierKeys { pub shift: bool, pub ctrl: bool, pub alt: bool, pub meta: bool }
+#[derive(Component)]
+pub struct Interactive {
+    pub layer: LayerId,           // owning layer plugin
+    pub z_order: i32,             // higher = "on top" for hit-test priority
+    pub flags: InteractionFlags,  // HOVERABLE | CLICKABLE | DRAGGABLE | DOUBLE_CLICKABLE
+}
 
-// Snapshotted at button-down and frozen for the gesture's lifetime.
+bitflags! {
+    pub struct InteractionFlags: u8 {
+        const HOVERABLE        = 1 << 0;
+        const CLICKABLE        = 1 << 1;
+        const DRAGGABLE        = 1 << 2;
+        const DOUBLE_CLICKABLE = 1 << 3;
+    }
+}
 
-#[derive(Message)] pub struct PointerPress       { pub button: PointerButton, pub position: Vec2, pub modifiers: ModifierKeys }
-#[derive(Message)] pub struct PointerRelease     { pub button: PointerButton, pub position: Vec2, pub modifiers: ModifierKeys }
-#[derive(Message)] pub struct PointerClick       { pub button: PointerButton, pub position: Vec2, pub modifiers: ModifierKeys }
-#[derive(Message)] pub struct PointerDoubleClick { pub button: PointerButton, pub position: Vec2, pub modifiers: ModifierKeys }
-#[derive(Message)] pub struct PointerDragStart   { pub button: PointerButton, pub origin: Vec2, pub position: Vec2, pub modifiers: ModifierKeys }
-#[derive(Message)] pub struct PointerDrag        { pub button: PointerButton, pub origin: Vec2, pub position: Vec2, pub delta: Vec2, pub modifiers: ModifierKeys }
-#[derive(Message)] pub struct PointerDragEnd     { pub button: PointerButton, pub origin: Vec2, pub position: Vec2, pub modifiers: ModifierKeys }
-#[derive(Message)] pub struct PointerMove        { pub position: Vec2, pub delta: Vec2, pub modifiers: ModifierKeys }
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
+pub struct LayerId(pub &'static str);   // e.g. LayerId("icon")
 ```
 
-**Public read-only state** (a thin queryable façade over the FSM, for UI feedback that genuinely needs polling — e.g., showing a "currently panning" cursor):
+Optional companion components live inside the layer that uses them — e.g. `HoverIcon`, `DragIcon`, `DragConstraint::OnSphere`. The framework doesn't need to know about them; the layer's own controller reads them.
+
+### Hit-test: per-layer system, no dyn-trait
+
+Each layer contributes one ordinary Bevy system that scans its entities and pushes candidates:
 
 ```rust
+// common/layer_registry.rs
+
 #[derive(Resource, Default)]
-pub struct PointerState {
-    pub position: Option<Vec2>,
+pub struct HitCandidates {
+    pub at_cursor: Vec<LayerHit>,   // cleared each frame by the dispatcher
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct LayerHit {
+    pub layer: LayerId,
+    pub entity: Entity,
+    pub z_order: i32,
+    pub flags: InteractionFlags,
+    pub feature_key: u64,           // layer-private sub-feature handle
+}
+```
+
+Layer hit-test systems run in parallel (different layers' queries don't conflict). The dispatcher runs in a `SystemSet::Dispatch` after them.
+
+### Outbound callbacks: typed Bevy `Message`s
+
+Layer-specific events are typed enums emitted by the layer's controller. Example:
+
+```rust
+// layers/icon/events.rs
+
+#[derive(Message, Clone, Debug)]
+pub enum IconEvent {
+    HoverEnter  { entity: Entity, icon_id: IconId },
+    HoverExit   { entity: Entity, icon_id: IconId },
+    Click       { entity: Entity, icon_id: IconId, modifiers: ModifierKeys },
+    DoubleClick { entity: Entity, icon_id: IconId, modifiers: ModifierKeys },
+    DragStart   { entity: Entity, icon_id: IconId, world_pos: DVec3, modifiers: ModifierKeys },
+    Drag        { entity: Entity, icon_id: IconId, world_pos: DVec3 },   // throttled at the bridge
+    DragEnd     { entity: Entity, icon_id: IconId, world_pos: DVec3 },
+}
+```
+
+The low-latency loop: while a drag is in progress, the layer's controller mutates the icon's `IconWorldPos` (and any connected lines) **every frame, locally**. `DragStart` and `DragEnd` always emit; `Drag` is throttled at the bridge layer. JS only feels the drag when the bridge says so.
+
+## Input Dispatch (replaces `ActiveTool`)
+
+A single `dispatcher::resolve_and_dispatch` system consumes Layer 1's pointer messages, reads `HitCandidates`, and emits routed messages. It owns a small private `GestureRouting` state per pointer button: `Idle` or `Routed { target: RouteTarget, frozen_entity, frozen_feature }`.
+
+### Routed messages
+
+```rust
+#[derive(Message, Clone, Debug)]
+pub struct LayerGesture {
+    pub target: LayerId,
+    pub entity: Entity,
+    pub feature_key: u64,
+    pub kind: LayerGestureKind,
     pub modifiers: ModifierKeys,
-    pub left:   PointerButtonStatus,   // Idle | Pressed | Dragging { origin, modifiers }
-    pub right:  PointerButtonStatus,
-    pub middle: PointerButtonStatus,
+}
+
+#[derive(Clone, Debug)]
+pub enum LayerGestureKind {
+    HoverEnter { position: Vec2 },
+    HoverExit,
+    Click       { position: Vec2 },
+    DoubleClick { position: Vec2 },
+    DragStart   { origin: Vec2, position: Vec2 },
+    Drag        { origin: Vec2, position: Vec2, delta: Vec2 },
+    DragEnd     { origin: Vec2, position: Vec2 },
+}
+
+/// Emitted when no layer claims the gesture. Consumed by camera AND by layers
+/// like polygon that want clicks-on-empty-space.
+#[derive(Message, Clone, Debug)]
+pub struct UnclaimedGesture {
+    pub kind: LayerGestureKind,
+    pub button: PointerButton,
+    pub modifiers: ModifierKeys,
+    pub cursor_world: Option<DVec3>,    // pre-computed sphere intersection if applicable
 }
 ```
 
-Tools should default to consuming **messages**; only reach for `PointerState` when polling current-frame state is genuinely simpler than tracking it via Start/End messages.
+### Routing rules
 
-**Internal FSM** lives in a `pub(crate)` resource owned by the plugin; the FSM owns timing (last-click timestamp + position per button for double-click) and modifier snapshotting. Click/double-click thresholds: ~300 ms, ~5 px, modifiers must match between the two clicks.
+1. **On `PointerPress`**: pick the highest-`z_order` `LayerHit` whose flags allow press intent. If found, freeze routing on that layer + entity. Else, route to camera.
 
-**Double-click semantics:** emit `PointerClick` immediately on every qualifying release, then **also** emit `PointerDoubleClick` when the second click qualifies. Tools must make their click handlers compatible with a follow-up double-click, OR use modifiers/different buttons to disambiguate. (E.g., add-marker-on-click + zoom-on-double-click on empty globe is a real conflict — you'd resolve it by making double-click re-route through the active tool.)
+2. **Subsequent gesture events for the same button**: emit `LayerGesture` to the *frozen* target/entity. Hit-tests in later frames don't change routing — drag-off-the-icon still drags the originally-clicked icon.
 
-**Modifier capture:** snapshot at `PointerPress`, freeze for the lifetime of that gesture. Subsequent `PointerDrag` events carry the press-time modifiers, **not** the current frame's modifiers. This matches user expectation (start panning, then press Shift — you stay in pan, not box-select). `PointerState.modifiers` always reflects the *current* frame, since polling consumers want live state.
+3. **On `PointerDragStart` for an entity that lacks `DRAGGABLE`**: re-route mid-gesture to camera. The dispatcher swaps `target` to `Camera` and emits a synthetic `UnclaimedGesture::DragStart`. (Confirmed with user: feels natural — pressing on a hover-only icon and dragging should pan the camera.)
 
-### Layer 2 — `common/active_tool`
+4. **On terminating event** (`DragEnd`, `Click`, `DoubleClick`, or release): reset routing for that button to `Idle`.
+
+5. **Hover** (no button held): every `PointerMove`, look at the highest-z `HOVERABLE` candidate. Diff against the previous frame's hovered entity and emit `HoverEnter` / `HoverExit`. Hover is suppressed while any button is held (revisit if a layer needs hover-during-drag, e.g. snap-to-target).
+
+6. **Modifier-priority layers** (e.g. `BoxSelectLayer`): the layer's hit-test pushes a synthetic `LayerHit { z_order: i32::MAX, .. }` whenever its modifier condition holds at press time. No special case in the dispatcher — it just wins by z-order. This generalizes "shift-drag is box-select even on icons."
+
+### Camera precedence
+
+Camera is a consumer of `UnclaimedGesture` for left-button gestures, **plus two always-on inputs that bypass the dispatcher**:
+
+- **Right-button drag → orbit**: always camera, never routed. Right-*click* (release within dead zone) on a layer entity *is* routed to that layer (e.g. polygon's right-click-to-remove-point) because the click/drag FSM split happens upstream.
+- **Scroll wheel → zoom**: always camera, never routed.
+
+This gives layers full control over left-button gestures and click-style right-button interactions, while keeping camera navigation reflexively available.
+
+## TS↔WASM Bridge (seam only)
+
+The bridge plugin lives at `bridge/` and is not implemented in this plan — only the seam is designed.
 
 ```rust
-#[derive(Resource, Default, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ActiveTool {
-    #[default] Pan,
-    Polygon,
-    BoxSelect,
-    // future: Measure, Path, ...
+// bridge/policy.rs (future)
+#[derive(Resource)]
+pub struct BridgePolicy {
+    pub icon_drag_emit_every_n_frames: u32,
+    pub icon_drag_emit_min_world_distance: f64,
+    pub coalesce_hover: bool,
+}
+
+// bridge/outbound.rs (future)
+#[wasm_bindgen]
+pub fn subscribe_icon_events(callback: js_sys::Function) { /* stash in thread-local */ }
+
+pub fn forward_icon_events(
+    mut events: MessageReader<IconEvent>,
+    policy: Res<BridgePolicy>,
+    mut last_drag_emit: Local<Option<DVec3>>,
+) {
+    for ev in events.read() {
+        if should_throttle(&ev, &policy, &mut last_drag_emit) { continue; }
+        ICON_SINK.with(|s| s.call(ev));
+    }
 }
 ```
 
-Plus a system condition helper:
+Inbound (JS → Bevy: `add_icon`, `move_icon`, etc.) is also out of scope and gets the same treatment in a future phase.
 
-```rust
-pub fn active_tool_is(tool: ActiveTool) -> impl Condition<()> { /* run_if */ }
-```
-
-Tool-specific mapper systems are registered with `.run_if(active_tool_is(ActiveTool::Polygon))` so they only fire when their tool is active. A small `tool_switch_input` system reads `KeyCode` (e.g., `V`=Pan, `P`=Polygon, `B`=BoxSelect) and writes to `ActiveTool`. UI for tool switching can come later.
-
-**Camera-secondary inputs are not gated.** Right-button drag (orbit) and scroll wheel (zoom) are always-active across all tools — they're navigation, not editing. Only **left**-button gestures are routed by `ActiveTool`. The orbit camera mapper splits in two: a modeless half (right-drag, scroll) and an `ActiveTool::Pan`-gated half (left-drag).
-
-### Layer 3 — Tool input mappers (existing pattern, lightly evolved)
-
-Each tool's `events.rs` becomes a thin translator: read pointer messages, emit tool-typed messages. Examples:
-
-- `polygon_tool::events::step` (run_if `ActiveTool::Polygon`): consumes `PointerClick` (modifiers must be empty) → `PolygonToolInputEvent::AddPoint(pos)`. Consumes `PointerClick` for right button → `RemoveLastPoint`. Future: `PointerClick` with Ctrl on a marker → `DeselectMarker`.
-- `orbit_camera::events::step` splits:
-  - **always-on** half: `PointerDrag` for right button → orbit; `MouseWheel` → zoom.
-  - **`ActiveTool::Pan`-gated** half: `PointerDrag` for left button (no modifiers) → pan.
-- `box_select::events::step` (run_if `ActiveTool::BoxSelect`, **or** any tool when Shift held — TBD): `PointerDragStart`/`PointerDrag`/`PointerDragEnd` with Shift → rectangle update events.
-
-This is the pattern that cleanly handles "shift-drag is box select even though Polygon is the active tool": the box\_select mapper's run condition is `active_tool_is(BoxSelect) OR (shift held at gesture start)`, and the camera/polygon mappers explicitly require empty modifiers. Filters stay mutually exclusive by design.
-
-### Layer 4 — Tool controllers (no changes)
-
-Existing `controller.rs` files continue to consume their tool-typed messages. Modal routing is invisible to them.
-
-### Hit-testing (cross-cutting)
-
-Move [`cursor_to_world_on_sphere_f64`](rust/bevy_experiment/src/orbit_camera/geometry.rs) and its helpers from `orbit_camera/geometry.rs` to a new `common/picking.rs`. Polygon tool already imports it from `orbit_camera`, which is a layering smell. Hover-driven hit-testing (e.g., highlight a marker under cursor) lives in each tool/layer that cares — they read `PointerMove` and run their own picking. No central hover dispatch yet; revisit if multiple layers want the same hover.
+The point of including the seam in this plan: the layer-event types (`IconEvent` etc.) are designed so they serialize cleanly to JS and so throttling is the bridge's job, not the layer's. Layers always emit faithfully; the bridge filters.
 
 ## Critical Files
 
 **New:**
-- `rust/bevy_experiment/src/common/pointer_input.rs` — Layer 1 (renamed/expanded `mouse_interaction.rs`)
-- `rust/bevy_experiment/src/common/active_tool.rs` — Layer 2
-- `rust/bevy_experiment/src/common/picking.rs` — extracted from `orbit_camera/geometry.rs`
+- [rust/bevy_experiment/src/common/pointer_input.rs](rust/bevy_experiment/src/common/pointer_input.rs) — Layer 1 (per existing plan)
+- [rust/bevy_experiment/src/common/picking.rs](rust/bevy_experiment/src/common/picking.rs) — extracted from `orbit_camera/geometry.rs`
+- [rust/bevy_experiment/src/common/interaction.rs](rust/bevy_experiment/src/common/interaction.rs) — `Interactive`, `InteractionFlags`, `LayerId`
+- [rust/bevy_experiment/src/common/layer_registry.rs](rust/bevy_experiment/src/common/layer_registry.rs) — `HitCandidates`, `LayerHit`, `LayerGesture`, `UnclaimedGesture`, dispatcher system, `SystemSet::Dispatch`
+- `rust/bevy_experiment/src/layers/icon/{plugin,state,hit_test,controller,render,events}.rs` — first smart layer (waypoints, hover + drag)
+- `rust/bevy_experiment/src/bridge/mod.rs` — placeholder module with `BridgePolicy` resource and a stub `forward_icon_events` system (one-layer proof-of-concept; full bridge is later work)
 
 **Modified:**
-- `rust/bevy_experiment/src/common/mod.rs` — module exports
-- `rust/bevy_experiment/src/main.rs` — register `ActiveToolPlugin`
-- `rust/bevy_experiment/src/orbit_camera/events.rs` — split into modeless + `Pan`-gated mappers; consume pointer messages instead of polling resource
-- `rust/bevy_experiment/src/orbit_camera/plugin.rs` — register both halves with run conditions; update import paths
-- `rust/bevy_experiment/src/orbit_camera/geometry.rs` — slim down (re-export from `common::picking` during migration, or delete)
-- `rust/bevy_experiment/src/orbit_camera/controller.rs` — update picking import
-- `rust/bevy_experiment/src/polygon_tool/events.rs` — consume `PointerClick` instead of polling
-- `rust/bevy_experiment/src/polygon_tool/plugin.rs` — add `run_if(active_tool_is(Polygon))`
-- `rust/bevy_experiment/src/polygon_tool/controller.rs` — update picking import
+- [rust/bevy_experiment/src/common/mod.rs](rust/bevy_experiment/src/common/mod.rs) — module exports
+- [rust/bevy_experiment/src/main.rs](rust/bevy_experiment/src/main.rs) — register `LayerRegistryPlugin`, `IconLayerPlugin`, bridge stub
+- [rust/bevy_experiment/src/orbit_camera/events.rs](rust/bevy_experiment/src/orbit_camera/events.rs) — split into always-on half (right-drag orbit, scroll zoom) and `UnclaimedGesture`-consuming half (left-drag pan); stop polling `MouseInteractionState`
+- [rust/bevy_experiment/src/orbit_camera/plugin.rs](rust/bevy_experiment/src/orbit_camera/plugin.rs) — register both halves with appropriate ordering; update import paths
+- [rust/bevy_experiment/src/orbit_camera/controller.rs](rust/bevy_experiment/src/orbit_camera/controller.rs) — update picking import
+- [rust/bevy_experiment/src/polygon_tool/events.rs](rust/bevy_experiment/src/polygon_tool/events.rs) — consume `PointerClick` instead of polling `MouseInteractionState` (Phase 2 of the in-flight plan)
+- [rust/bevy_experiment/src/polygon_tool/controller.rs](rust/bevy_experiment/src/polygon_tool/controller.rs) — update picking import
 
 **Deleted:**
-- `rust/bevy_experiment/src/common/mouse_interaction.rs` (replaced by `pointer_input.rs`)
+- [rust/bevy_experiment/src/common/mouse_interaction.rs](rust/bevy_experiment/src/common/mouse_interaction.rs) — replaced by `pointer_input.rs`
+- [rust/bevy_experiment/src/orbit_camera/geometry.rs](rust/bevy_experiment/src/orbit_camera/geometry.rs) — contents moved to `common/picking.rs`
 
-## Migration Path (5 phases, behavior-preserving until Phase 4)
+**Preserved untouched (per user decision):**
+- All existing `polygon_tool/` files. The polygon prototype stays as-is alongside the new framework. It will receive the Phase-2 input-polling cleanup but is not reframed as a layer in this plan; that comes later if/when polygon control points need drag interactivity.
 
-Each phase compiles, runs, and matches current behavior. No flag day.
+**Not built (deleted from in-flight plan):**
+- `common/active_tool.rs` and `active_tool_is(...)` run-condition — replaced entirely by the dispatcher.
 
-**Phase 1 — Add Layer 1 alongside the current FSM, keep state for back-compat.**
-- Create `common/pointer_input.rs` with the new message types and the FSM. Keep `MouseInteractionState` exported with the same shape so existing consumers don't break.
-- Internally, the new system emits the new messages **and** writes the legacy `MouseInteractionState`.
-- Rename module from `mouse_interaction` to `pointer_input`; leave a `pub use` alias in `common/mod.rs` for the old path so consumers compile unchanged.
-- **Verify:** app behaves identically. Add `cargo test` for the FSM (table-driven: press → drag threshold → release scenarios; modifier capture; double-click window).
+## Migration Path (8 phases, behavior-preserving until Phase 6)
+
+Each phase compiles, runs, and matches current behavior unless noted. No flag day.
+
+**Phase 1 — `pointer_input` alongside legacy `MouseInteractionState`.**
+Per the in-flight plan's Phase 1: create [common/pointer_input.rs](rust/bevy_experiment/src/common/pointer_input.rs) with new message types and the FSM. Keep `MouseInteractionState` exported with the same shape; the new system writes both. Add the FSM unit tests.
+**Verify:** identical app behavior; new tests pass.
 
 **Phase 2 — Migrate `polygon_tool` to messages.**
-- Rewrite `polygon_tool/events.rs` to consume `PointerClick` (left + right) instead of polling `MouseInteractionState`.
-- **Verify:** click adds a control point, right-click removes one (current behavior).
+Per the in-flight plan's Phase 2: rewrite `polygon_tool/events.rs` to consume `PointerClick` instead of polling.
+**Verify:** click adds a control point, right-click removes one.
 
-**Phase 3 — Migrate `orbit_camera` to messages and split the mapper.**
-- Rewrite `orbit_camera/events.rs` to consume `PointerDragStart`/`PointerDrag`/`PointerDragEnd` for left (pan) and right (orbit), and `MouseWheel` for zoom.
-- Don't gate yet — all tools/inputs run unconditionally as today.
-- **Verify:** pan, orbit, zoom all still feel identical (especially the cursor-position-based pan, which today preserves the grabbed point under the cursor).
+**Phase 3 — Migrate `orbit_camera` to messages + extract picking.**
+Per the in-flight plan's Phase 3 + Phase 5: rewrite `orbit_camera/events.rs` to consume `PointerDragStart/Drag/DragEnd` and `MouseWheel`. Move `cursor_to_world_on_sphere_f64` and helpers from `orbit_camera/geometry.rs` to `common/picking.rs`. Update imports in [orbit_camera/controller.rs](rust/bevy_experiment/src/orbit_camera/controller.rs) and [polygon_tool/controller.rs](rust/bevy_experiment/src/polygon_tool/controller.rs). Don't gate yet — all inputs run unconditionally.
+**Verify:** pan, orbit, zoom feel identical; grabbed point stays under cursor.
 
-**Phase 4 — Introduce `ActiveTool` and gate tool inputs.**
-- Add `common/active_tool.rs` with default `Pan`. Add keyboard tool-switch system (`V`/`P`).
-- Apply `run_if(active_tool_is(...))` to:
-  - `orbit_camera`'s left-drag pan mapper → `Pan`
-  - `polygon_tool`'s click mapper → `Polygon`
-- Right-drag orbit and scroll zoom remain modeless.
-- **Verify:** with default `Pan` active, app behaves as today. Press `P` and clicking adds polygon points but left-drag no longer pans (intended). Press `V` and pan returns.
+**Phase 4 — Introduce framework scaffolding (no layers yet, no behavior change).**
+- Add [common/interaction.rs](rust/bevy_experiment/src/common/interaction.rs) and [common/layer_registry.rs](rust/bevy_experiment/src/common/layer_registry.rs).
+- Add the dispatcher system and `SystemSet::Dispatch`.
+- Camera switches to consuming `UnclaimedGesture` for left-button (everything is "unclaimed" at this point because no layer is registered).
+- Right-drag and scroll keep their direct paths.
+**Verify:** identical app behavior — every gesture falls through to camera. The framework is invisible. This is the key validation step: dispatcher wiring is correct before any layer competes for input.
 
-**Phase 5 — Clean up and extract picking.**
-- Delete `MouseInteractionState` and the legacy alias.
-- Move `cursor_to_world_on_sphere_f64` and helpers from `orbit_camera/geometry.rs` to `common/picking.rs`. Update imports in `orbit_camera/controller.rs` and `polygon_tool/controller.rs`.
-- **Verify:** full clean build with no `mouse_interaction` references; behavior unchanged.
+**Phase 5 — Polygon click-on-empty-globe migrates to `UnclaimedGesture`.**
+The polygon prototype has no `Interactive` entities, so its click-to-add and right-click-to-remove handlers move from raw `PointerClick` to `UnclaimedGesture { kind: Click, button: ... }`. This is a small mechanical change but it proves the dispatcher correctly fans `UnclaimedGesture` to multiple consumers (camera + polygon).
+**Verify:** polygon prototype still works; pan/orbit/zoom unchanged.
 
-After Phase 5 the foundation supports double-click, hover, modifiers, and box-select with no further architectural changes — those become incremental feature additions:
+**Phase 6 — Build `IconLayer` (first true smart layer; first new behavior).**
+- New `layers/icon/` plugin: `IconWorldPos`, `IconRadius`, `IconAppearance`, `IconId`, `HoverIcon`, `DragIcon`, `DragConstraint::OnSphere`.
+- Hit-test system projects each icon's world position to screen-space and checks distance to cursor.
+- Controller consumes `LayerGesture { target: LayerId("icon"), .. }`, handles hover (icon swap), drag (mutate `IconWorldPos` locally during `Drag`), emits `IconEvent`.
+- Render system uses gizmos for now (sphere markers); upgrade to billboarded sprites later.
+- Spawn a handful of test icons in [basic_scene.rs](rust/bevy_experiment/src/basic_scene.rs) to exercise the layer.
+**Verify:** hover an icon → it changes appearance. Drag an icon → it follows the cursor smoothly across the sphere. Release → it stays where dropped. Press on an icon and drag in empty space → camera pans (re-route rule). Right-drag still orbits, scroll still zooms.
 
-- **Double-click zoom-to-point:** orbit camera's modeless mapper consumes `PointerDoubleClick` → emit a zoom-to-cursor event.
-- **Connected-marker selection:** polygon tool consumes `PointerDoubleClick` and runs marker hit-test.
-- **Hover highlight:** new layer (e.g., marker tool) consumes `PointerMove`, runs marker hit-test, updates a `HoveredMarker` resource for rendering.
-- **Box select:** new `box_select` module gated by `ActiveTool::BoxSelect` (or modifier-triggered overlay), consumes `PointerDragStart`/`PointerDrag`/`PointerDragEnd`.
-- **Ctrl-click toggle selection:** any tool whose mapper checks `modifiers.ctrl` on `PointerClick`.
+**Phase 7 — Bridge stub for `IconEvent`.**
+- `bridge/` plugin with `BridgePolicy` resource (defaults: emit `Drag` every 4 frames, no min-distance).
+- `forward_icon_events` system that logs `IconEvent` to console (no actual `wasm_bindgen` export yet — the goal is just to prove the throttled-forwarding shape).
+- Add a `bridge::log_icon_events` toggle in [main.rs](rust/bevy_experiment/src/main.rs) for development.
+**Verify:** `cargo run` shows `IconEvent::DragStart` once, `IconEvent::Drag` periodically, `IconEvent::DragEnd` once on each interaction. No bridge work; just confirms the forwarding seam works.
+
+**Phase 8 — Cleanup.**
+- Delete `MouseInteractionState` and the legacy alias from `common/mod.rs`.
+- Delete `orbit_camera/geometry.rs` (now empty after Phase 3 move).
+- Confirm `cargo clippy` is clean.
+**Verify:** full clean build with no `mouse_interaction` references; behavior unchanged.
+
+After Phase 8 the foundation supports box-select (synthetic-priority hit-test), a future `PolygonLayer` (control points become `Interactive` entities), arbitrary new layer plugins, and the JS-side bridge — all as incremental additions, no further architectural change.
 
 ## Verification
 
-After each phase: `cargo build`, then run `cargo run --bin bevy_experiment` and exercise:
+After each phase: `cargo build && cargo run --bin bevy_experiment`. Exercise:
 
-- **Phase 1:** all existing interactions (pan via left-drag, orbit via right-drag, scroll zoom, polygon click add, polygon right-click remove) work identically.
-- **Phase 2:** specifically polygon click add/remove. A 4-pixel "click" still registers as drag (not click) due to the 3 px dead zone.
-- **Phase 3:** pan smoothness — the grabbed world point stays under the cursor (regression risk: cursor position must continue to flow into `controller::step` at f64 precision via `PointerState.position` or the message stream).
-- **Phase 4:** keyboard tool switching changes input routing as expected; right-drag orbit and scroll zoom work in every tool.
-- **Phase 5:** no behavior change; just import cleanup.
+- **Phases 1–3:** existing interactions (pan via left-drag, orbit via right-drag, scroll zoom, polygon click add, polygon right-click remove) work identically. The 4-pixel "click" still registers as drag (3 px dead zone).
+- **Phase 4:** dispatcher in place but invisible; behavior unchanged.
+- **Phase 5:** polygon prototype unchanged; verify the dispatcher's `UnclaimedGesture` fan-out to two consumers.
+- **Phase 6:** new — hover/drag icons. Check the re-route rule: press on icon → drag in empty space → camera pans. Check freeze rule: drag-off-icon-edge keeps dragging the icon, doesn't switch to camera.
+- **Phase 7:** console logs show throttled `IconEvent::Drag` between un-throttled `DragStart`/`DragEnd`.
+- **Phase 8:** no behavior change; just import cleanup.
 
-**Unit tests** for `pointer_input` FSM (added in Phase 1, expanded as new gestures land):
-- press → release inside dead zone → `PointerClick` fires once, `PointerPress` and `PointerRelease` fire too.
-- press → move past 3 px → release → `PointerDragStart` + `PointerDrag` events + `PointerDragEnd`, no `PointerClick`.
-- press with Shift → release → `PointerClick.modifiers.shift == true`.
-- two clicks within 300 ms / 5 px / matching modifiers → `PointerDoubleClick`.
-- two clicks across 400 ms → no `PointerDoubleClick`.
+**Unit tests** (added in Phase 1, expanded as new gestures land):
+- `pointer_input` FSM: press → release in dead zone → `PointerClick` once. Press → move past 3 px → release → `DragStart` + `Drag` + `DragEnd`, no `PointerClick`. Press with Shift → `PointerClick.modifiers.shift == true`. Two clicks within 300 ms / 5 px / matching modifiers → `PointerDoubleClick`. Two clicks across 400 ms → no `PointerDoubleClick`.
+- Dispatcher (added in Phase 4): table-driven scenarios with synthesized pointer messages and seeded `HitCandidates`. Press-on-empty → `UnclaimedGesture`. Press-on-layer → `LayerGesture` to that layer. Drag-off-entity preserves frozen routing. Press-on-non-DRAGGABLE + DragStart → re-routes to camera with synthetic `UnclaimedGesture::DragStart`. Modifier-priority layer wins over higher-z-order content layer.
+- `IconLayer` controller (added in Phase 6): hover swap on `HoverEnter`/`HoverExit`, drag updates `IconWorldPos` along the sphere, emits `IconEvent` correctly.
 
-These tests are cheap to write because the FSM's only inputs are `(just_pressed, pressed, just_released, cursor_position, modifiers, time)` — no Bevy `App` needed; just call the classifier function directly with synthesized inputs.
+The dispatcher tests are the load-bearing ones for the new architecture — they're cheap because the dispatcher's only inputs are `(pointer messages, HitCandidates, current routing state)`, no Bevy `App` needed.
 
+## Open Questions / Future Considerations
 
+These are flagged for awareness; none block this plan:
 
-
-
-
-Hmm, actually I just remembered that I want my tool logic to exist outside of the Bevy app entirely - this will be embedded in a typescript web app and will only be used for things like rendering and detecting clicks on objects. For now, the polygon_tool is largely a prototyping/debugging feature.
-
-So, please update the plan to facilitate this use case instead: an external API (exposed to javascript) will be used to enable/disable camera panning, and it should expose the following events to javascript:
-- camera moved
-- mouse down/up on object or terrain/background
-- mouse click on object or terrain/background
-- mouse double click on object or terrain/background
-- mouse move over object or terrain/background
-- mouse drag (move after starting a drag operation) over object or terrain/background
--
--
+1. **Hover-during-drag** (e.g. drag a waypoint *over* another to snap them). Out of scope. Add a per-layer `HOVER_DURING_DRAG` flag if a use case appears.
+2. **Multi-fan-out of `UnclaimedGesture::Click`.** If two layers both want "click on empty globe", both fire. Currently fine; if exclusivity needed later, add a `consume()` API or coordinate via TS-side config.
+3. **`LayerId(&'static str)` works for compile-time-known layers; runtime layer registration from TS would need an interner.** Not a goal for now.
+4. **Right-press-on-icon then drag past 3 px** is classified as drag → camera orbit. The user might have meant a click that wiggled. Acceptable per current FSM behavior.
+5. **`feature_key: u64`** assumed sufficient for sub-feature handles. Switch to a richer payload only if a layer needs more than an integer.
+6. **Pointer-capture on cursor-leaves-window during drag.** Layer 1 already accumulates raw `MouseMotion` so the dispatcher keeps emitting `Drag` while the button is held. Verify in Phase 6 that this works for icons, not just camera pan.
