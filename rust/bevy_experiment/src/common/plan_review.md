@@ -12,7 +12,7 @@ This review is directional, not migration-focused. Where the plan needs sharpeni
 
 There are **four refinements worth making before you start building** that meaningfully improve cleanliness, performance, and OSS-readiness:
 
-1. **Strategic: decide your relationship to `bevy_picking`.** Bevy 0.17 ships a hit-test framework with pluggable backends and entity-targeted events that overlaps ~70% with what the plan is building. You should either use it (and build only the dispatcher + re-routing on top) or document the deliberate decision not to.
+1. **Strategic: don't compose on `bevy_picking` — build your own picking-backend trait.** `bevy_picking`'s backend slot is flexible enough to host a deck.gl-style ID-texture pipeline, but its hit data model (no sub-feature index per entity) breaks down for million-point layers. The plan's `feature_key: u64` is the right shape; bake it into your own backend trait from day one. See §2.
 2. **Use observers, not `LayerId`-filtered messages, for layer dispatch.** This is the single highest-leverage change for cleanliness. Removes a runtime filter, eliminates a class of "I forgot to check `target ==`" bugs, and is idiomatic for Bevy 0.17.
 3. **Fix the `HitCandidates` parallelism story.** A `Resource` with `Vec` write access serializes the systems writing into it; the plan claims they run in parallel, but they can't.
 4. **Make SystemSet ordering explicit and load-bearing.** `PointerInput → HitTest → Dispatch → Controllers` should be the documented contract that plugin authors target.
@@ -35,33 +35,27 @@ These are the load-bearing decisions; they should not change.
 
 ---
 
-## 2. Strategic question: relationship to `bevy_picking`
+## 2. Strategic question: relationship to `bevy_picking` — resolved, build your own
 
-This is the most important question for the plan, and it isn't addressed.
+Bevy 0.17 ships [`bevy_picking`](https://docs.rs/bevy_picking) with pluggable backends and entity-targeted `Pointer<*>` observer events. Worth comparing because it overlaps ~70% with what the plan builds.
 
-Bevy 0.17 ships [`bevy_picking`](https://docs.rs/bevy_picking) which provides:
+**The deciding factor is the long-term picking strategy.** The intended approach is deck.gl-style: render all pickable entities to an off-screen ID-texture each frame (or on demand), sample a pixel kernel around the cursor for radius support, decode `(layer, feature_index)` from the pixel. Scales to millions of points with no CPU raycasting.
 
-- **Pluggable backends** — mesh, sprite, UI, gizmo, and arbitrary user backends. A backend computes hits at the cursor and pushes them into a shared resource. Backends run in parallel.
-- **Entity-targeted observer events** — `Pointer<Click>`, `Pointer<Drag>`, `Pointer<Over>`, `Pointer<Out>`, `Pointer<Move>`, etc., dispatched via Bevy's observer system to the picked entity directly.
-- **A `Pickable` component** that opts entities in.
+Three layers to evaluate:
 
-This overlaps roughly 70% with what the plan is building from scratch. The plan's `Interactive` ≈ `Pickable`, `LayerHit` ≈ a backend's hit output, and the `LayerGesture` events nearly mirror `Pointer<*>`.
+**Backend ABI — flexible enough.** A `bevy_picking` backend is a Bevy system that pushes entries into `PointerHits`. You have full freedom inside that system, including a render-graph node, async GPU→CPU readback, and kernel decoding. The 1–2 frame readback latency is fine for hover/click. Radius logic is internal to the backend. So a deck.gl-style backend slots in mechanically.
 
-**There are real reasons you might still build your own**:
-- You need re-routing logic (press-on-hover-only-icon → camera pan) that `bevy_picking` doesn't model.
-- You want sphere-projection picking for layers whose entities aren't on a Bevy mesh (an icon "is" a `DVec3` world position, not an entity with a `Mesh` AABB).
-- You want gestures to fall through to "camera as a virtual layer", which `bevy_picking` doesn't natively express.
-- You want full control over the API for OSS positioning (`bevy_picking` is general-purpose; a map library benefits from a tighter, map-specific surface).
+**Hit data model — too narrow.** `HitData` is `(Entity, depth, position, normal)`. No slot for "sub-feature index within the entity." For a single layer hosting 1M points the options are both ugly:
+- One ECS entity per point — painful at scale (storage, queries, render extraction churn).
+- One entity for the whole layer, smuggle the point index through a side-channel resource that downstream observers consult.
 
-**But there are also strong arguments to compose on top of it**:
-- Custom backends are exactly the extension point `bevy_picking` is designed for. A `MapSphereBackend` projecting the cursor onto the globe and a `BillboardBackend` for icons are small.
-- You inherit observer-based dispatch (point #3 below) for free.
-- Existing Bevy users will recognize your layer model immediately.
-- Less code to maintain, document, and test.
+The plan's `feature_key: u64` is exactly the right shape for the deck.gl model — `(layer, entity, feature_key)` is the real picking identity. `bevy_picking` collapses that to just `Entity`.
 
-**My recommendation:** Spend 1–2 days reading `bevy_picking`'s source and writing a one-page memo on whether composing on top is viable. The likely answer is "yes, for hit-testing; no, for the dispatcher / re-routing / fallback semantics." That is fine — but it should be a deliberate decision documented in the plan, not an oversight. An OSS map library that ignores Bevy's first-party picking framework needs to justify itself.
+**Dispatch layer — once (2) forces a custom event type, building on `bevy_picking`'s observers stops paying off.** The re-route rule, camera-fallback, and modifier-priority all need `feature_key`-aware gestures.
 
-If you compose: keep the dispatcher, the re-route rule, the fallback-to-camera model, the layer/controller pattern, and the bridge — but delete `HitCandidates`, `LayerHit`, and per-layer hit-test systems. They become `bevy_picking` backends.
+**Conclusion: build your own picking-backend trait.** Same general shape as `bevy_picking`'s — a documented extension point for new hit producers — but `feature_key`-aware from day one. Plug in a deck.gl ID-texture backend, a sphere-projection backend, a mesh-AABB backend, etc., each as its own plugin. This is also the cleaner OSS positioning: "a Bevy map library with deck.gl-inspired picking and `feature_key`-aware events," not "a wrapper around `bevy_picking` with workarounds."
+
+This means: keep the plan's `LayerHit { feature_key }` shape; replace `HitCandidates` (the resource that serializes parallel writes) with a message-based or per-backend-channel collection mechanism (see §4); design the backend trait as the public extension surface for OSS users.
 
 ---
 
@@ -102,7 +96,7 @@ app.add_observer(
 
 ---
 
-## 4. Fix the `HitCandidates` parallelism story
+## 4. Fix the `HitCandidates` parallelism story (and reframe it for the deck.gl direction)
 
 Spec gap with a real consequence.
 
@@ -112,13 +106,15 @@ The plan says:
 
 But they all need write access to `ResMut<HitCandidates>`, which Bevy serializes. The claim is wrong as written.
 
-Three reasonable fixes, in order of preference:
+**Once §2 resolves toward deck.gl ID-texture picking, the parallelism model changes entirely.** "Per-layer CPU hit-test systems" is a transitional pattern. The end state is:
 
-1. **Drop `HitCandidates` if you compose on `bevy_picking`** — backends accumulate hits via the framework's existing parallel-friendly mechanism. (See §2.)
-2. **Convert hit-test systems to `MessageWriter<LayerHit>`.** Each layer writes its candidates as messages; the dispatcher reads them all. Messages don't conflict between writers, so layers' hit-test systems run in parallel. This is the smallest delta from the current plan and preserves all the existing semantics.
-3. **Per-system `Local<Vec<LayerHit>>` + a gather system.** More plumbing, no clear advantage over messages.
+- Each layer contributes its renderable data to a single ID-texture render pass (parallel via the render graph — extraction and queue phases are designed for this).
+- One backend system reads back the texture, decodes the kernel around the cursor, produces a single `LayerHit`.
+- No multi-system contention on a CPU resource.
 
-Whichever you pick, make it explicit in the plan. The current text suggests parallelism that the data structure prevents.
+For the transitional period — before the ID-texture backend exists, when you have a sphere-projection backend and an icon-billboard CPU backend running side by side — the cleanest model is **one backend system per backend kind**, each producing hits independently into a per-backend message channel (or `MessageWriter<LayerHit>`). The dispatcher reads all of them. Backends are parallel; the dispatcher is the single consumer.
+
+Either way: drop the `HitCandidates` resource. Use messages, or per-backend channels. The current Vec-in-a-Resource design serializes work that should be parallel and makes the framework less hospitable to the GPU-backend future.
 
 ---
 
@@ -190,8 +186,8 @@ Tactical, but worth deciding now since they shape the file layout:
 
 These are decisions I'd want answered before writing the framework, ranked by impact:
 
-1. **Compose on `bevy_picking` or build standalone?** (§2) — biggest decision; affects ~30% of the code.
-2. **Observers vs. `LayerId`-filtered `MessageReader<LayerGesture>` for dispatch?** (§3) — strongly recommend observers; want your sign-off before re-specifying.
+1. ~~Compose on `bevy_picking` or build standalone?~~ **Resolved (§2):** build your own backend trait; deck.gl ID-texture strategy is incompatible with `bevy_picking`'s hit data model.
+2. **Observers vs. `LayerId`-filtered `MessageReader<LayerGesture>` for dispatch?** (§3) — strongly recommend observers; need your sign-off. Note: this question stands independent of (1) — your custom dispatcher can still trigger observers on entities.
 3. **OSS scope: is this *the* library you intend to publish, or a prototype that informs a v2?** Affects how strict to be about §7.
 4. **Is `cursor_world` sphere-projection a framework concern or a layer concern?** (§7) — affects framework neutrality vs. ergonomics tradeoff.
 5. **What's the minimum-viable second layer after `IconLayer` for proving the framework?** The plan says polygon eventually, box-select eventually. Picking a concrete second layer to drive *during* IconLayer's design helps avoid "framework that fits exactly one user."
